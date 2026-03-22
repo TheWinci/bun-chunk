@@ -18,11 +18,15 @@
     "embeddings",
     "bun"
   ],
+  "bin": {
+    "bun-chunk": "src/cli.ts"
+  },
   "files": [
     "src/"
   ],
   "scripts": {
-    "test": "bun test"
+    "test": "bun test",
+    "chunk": "bun src/cli.ts"
   },
   "dependencies": {
     "tree-sitter-c": "^0.24.1",
