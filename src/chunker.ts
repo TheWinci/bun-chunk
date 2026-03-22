@@ -81,6 +81,51 @@ function nodeTypeToChunkType(nodeType: string, language: Language): ChunkType {
     static_initializer: "block",
     annotation_type_element_declaration: "method",
     enum_constant: "constant",
+    // C
+    preproc_include: "import",
+    preproc_def: "constant",
+    preproc_function_def: "function",
+    struct_specifier: "struct",
+    enum_specifier: "enum",
+    union_specifier: "struct",
+    type_definition: "type",
+    // C++
+    class_specifier: "class",
+    namespace_definition: "module",
+    template_declaration: "type",
+    // C#
+    struct_declaration: "struct",
+    namespace_declaration: "module",
+    property_declaration: "property",
+    event_declaration: "variable",
+    delegate_declaration: "type",
+    using_directive: "import",
+    // Ruby
+    module: "module",
+    class: "class",
+    method: "method",
+    singleton_method: "method",
+    // PHP
+    trait_declaration: "trait",
+    namespace_use_declaration: "import",
+    namespace_definition_php: "module",
+    // Scala
+    object_definition: "class",
+    trait_definition: "trait",
+    val_definition: "variable",
+    var_definition: "variable",
+    // HTML
+    element: "element",
+    // CSS
+    rule_set: "selector",
+    media_statement: "rule",
+    keyframes_statement: "rule",
+    // YAML
+    block_mapping_pair: "property",
+    // TOML
+    table: "section",
+    table_array_element: "section",
+    pair: "property",
   };
   return map[nodeType] ?? "block";
 }
@@ -102,9 +147,19 @@ function isCommentLine(line: string, language: Language): boolean {
     case "rust":
     case "go":
     case "java":
+    case "c":
+    case "cpp":
+    case "csharp":
+    case "php":
+    case "scala":
       return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/");
     case "python":
+    case "ruby":
       return trimmed.startsWith("#") || trimmed.startsWith('"""') || trimmed.startsWith("'''");
+    case "html":
+      return trimmed.startsWith("<!--") || trimmed.startsWith("-->") || trimmed.startsWith("-->");
+    case "css":
+      return trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/");
     default:
       return false;
   }
@@ -119,7 +174,13 @@ function isDecoratorLine(line: string, language: Language): boolean {
     case "typescript":
     case "javascript":
     case "java":
-      return trimmed.startsWith("@") && !trimmed.startsWith("@interface"); // @interface is Java annotation type
+      return trimmed.startsWith("@") && !trimmed.startsWith("@interface");
+    case "php":
+      return trimmed.startsWith("#["); // PHP 8 attributes
+    case "rust":
+      return trimmed.startsWith("#[") || trimmed.startsWith("#![");
+    case "csharp":
+      return trimmed.startsWith("[") && trimmed.endsWith("]");
     default:
       return false;
   }

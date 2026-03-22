@@ -158,6 +158,130 @@ const JAVA = `
   (enum_declaration (modifiers)? @context "enum" @context name: (identifier) @name) @item)
 `;
 
+// --- New languages ---
+
+const C = `
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @name)) @item
+
+(function_definition
+  declarator: (pointer_declarator
+    declarator: (function_declarator
+      declarator: (identifier) @name))) @item
+
+(declaration
+  declarator: (function_declarator
+    declarator: (identifier) @name)) @item
+
+(struct_specifier name: (type_identifier) @name) @item
+(enum_specifier name: (type_identifier) @name) @item
+(union_specifier name: (type_identifier) @name) @item
+(type_definition declarator: (type_identifier) @name) @item
+
+(preproc_include) @item
+(preproc_def name: (identifier) @name) @item
+(preproc_function_def name: (identifier) @name) @item
+`;
+
+const CPP = `
+(function_definition
+  declarator: (function_declarator
+    declarator: (qualified_identifier) @name)) @item
+
+(function_definition
+  declarator: (function_declarator
+    declarator: (identifier) @name)) @item
+
+(function_definition
+  declarator: (pointer_declarator
+    declarator: (function_declarator
+      declarator: (identifier) @name))) @item
+
+(declaration
+  declarator: (function_declarator
+    declarator: (identifier) @name)) @item
+
+(class_specifier name: (type_identifier) @name) @item
+(struct_specifier name: (type_identifier) @name) @item
+(enum_specifier name: (type_identifier) @name) @item
+(union_specifier name: (type_identifier) @name) @item
+
+(namespace_definition name: (namespace_identifier) @name) @item
+
+(type_definition declarator: (type_identifier) @name) @item
+
+(preproc_include) @item
+(preproc_def name: (identifier) @name) @item
+`;
+
+const CSHARP = `
+(class_declaration name: (identifier) @name) @item
+(interface_declaration name: (identifier) @name) @item
+(struct_declaration name: (identifier) @name) @item
+(enum_declaration name: (identifier) @name) @item
+(record_declaration name: (identifier) @name) @item
+(namespace_declaration name: (_) @name) @item
+
+(method_declaration name: (identifier) @name) @item
+(constructor_declaration name: (identifier) @name) @item
+(property_declaration name: (identifier) @name) @item
+(field_declaration
+  (variable_declaration
+    (variable_declarator (identifier) @name))) @item
+(event_declaration name: (identifier) @name) @item
+(delegate_declaration name: (identifier) @name) @item
+
+(using_directive) @item
+`;
+
+const RUBY = `
+(class name: (constant) @name) @item
+(module name: (constant) @name) @item
+(method name: (identifier) @name) @item
+(singleton_method name: (identifier) @name) @item
+`;
+
+const PHP = `
+(class_declaration name: (name) @name) @item
+(interface_declaration name: (name) @name) @item
+(trait_declaration name: (name) @name) @item
+(enum_declaration name: (name) @name) @item
+
+(function_definition name: (name) @name) @item
+(method_declaration name: (name) @name) @item
+
+(namespace_definition name: (namespace_name) @name) @item
+(namespace_use_declaration) @item
+`;
+
+
+const SCALA = `
+(class_definition name: (identifier) @name) @item
+(object_definition name: (identifier) @name) @item
+(trait_definition name: (identifier) @name) @item
+
+(function_definition name: (identifier) @name) @item
+
+(import_declaration) @item
+(package_clause (package_identifier) @name) @item
+`;
+
+const HTML = `
+(element
+  (start_tag (tag_name) @name)) @item
+`;
+
+const CSS = `
+(rule_set
+  (selectors) @name) @item
+
+(media_statement) @item
+(import_statement) @item
+(keyframes_statement
+  (keyframes_name) @name) @item
+`;
+
 export const QUERIES: Record<Language, string> = {
   typescript: TYPESCRIPT,
   javascript: JAVASCRIPT,
@@ -165,4 +289,12 @@ export const QUERIES: Record<Language, string> = {
   rust: RUST,
   go: GO,
   java: JAVA,
+  c: C,
+  cpp: CPP,
+  csharp: CSHARP,
+  ruby: RUBY,
+  php: PHP,
+  scala: SCALA,
+  html: HTML,
+  css: CSS,
 };

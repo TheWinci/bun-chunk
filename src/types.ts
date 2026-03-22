@@ -1,5 +1,8 @@
 /** Supported languages */
-export type Language = "typescript" | "javascript" | "python" | "rust" | "go" | "java";
+export type Language =
+  | "typescript" | "javascript" | "python" | "rust" | "go" | "java"
+  | "c" | "cpp" | "csharp" | "ruby" | "php" | "scala"
+  | "html" | "css";
 
 /** A structured import extracted from a chunk */
 export interface ChunkImport {
@@ -74,6 +77,16 @@ export type ChunkType =
   | "package"
   | "record"
   | "annotation_type"
+  | "property"
+  | "selector"
+  | "rule"
+  | "section"
+  | "heading"
+  | "element"
+  | "object"
+  | "companion"
+  | "protocol"
+  | "extension"
   | "block"  // gap or merged block
   ;
 
@@ -99,4 +112,22 @@ export const EXTENSION_MAP: Record<string, Language> = {
   ".rs": "rust",
   ".go": "go",
   ".java": "java",
+  ".c": "c",
+  ".h": "c",
+  ".cpp": "cpp",
+  ".cc": "cpp",
+  ".cxx": "cpp",
+  ".hpp": "cpp",
+  ".hh": "cpp",
+  ".hxx": "cpp",
+  ".cs": "csharp",
+  ".rb": "ruby",
+  ".php": "php",
+  ".scala": "scala",
+  ".sc": "scala",
+  ".html": "html",
+  ".htm": "html",
+  ".css": "css",
+  ".scss": "css",
+  ".less": "css",
 };

@@ -18,6 +18,19 @@ export function extractImports(text: string, language: Language): ChunkImport[] 
       return extractGoImports(text);
     case "java":
       return extractJavaImports(text);
+    case "c":
+    case "cpp":
+      return extractCImports(text);
+    case "csharp":
+      return extractCSharpImports(text);
+    case "ruby":
+      return extractRubyImports(text);
+    case "php":
+      return extractPHPImports(text);
+    case "scala":
+      return extractScalaImports(text);
+    case "css":
+      return extractCSSImports(text);
     default:
       return [];
   }
@@ -44,6 +57,17 @@ export function extractExports(
       return extractGoExports(text, entityType, entityName);
     case "java":
       return extractJavaExports(text, entityType, entityName);
+    case "c":
+    case "cpp":
+      return extractCExports(text, entityType, entityName);
+    case "csharp":
+      return extractCSharpExports(text, entityType, entityName);
+    case "ruby":
+      return extractRubyExports(text, entityType, entityName);
+    case "php":
+      return extractPHPExports(text, entityType, entityName);
+    case "scala":
+      return extractScalaExports(text, entityType, entityName);
     default:
       return [];
   }
@@ -264,13 +288,13 @@ function extractRustImports(text: string): ChunkImport[] {
 }
 
 function extractRustExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
-  if (entityName && /^\s*pub\s/.test(text) && entityType !== "import") {
+  if (entityName && /^pub\s/m.test(text) && entityType !== "import") {
     return [{
       name: entityName,
       type: entityType,
       isDefault: false,
-      isReExport: /^\s*pub\s+use\s/.test(text),
-      reExportSource: /^\s*pub\s+use\s/.test(text) ? text.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
+      isReExport: /^pub\s+use\s/m.test(text),
+      reExportSource: /^pub\s+use\s/m.test(text) ? text.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
     }];
   }
   return [];
@@ -354,4 +378,180 @@ function extractJavaExports(text: string, entityType: ChunkType, entityName: str
     }];
   }
   return [];
+}
+
+// --- C / C++ ---
+
+function extractCImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // #include <header.h> or #include "header.h"
+  const includeRegex = /#include\s+[<"]([^>"]+)[>"]/g;
+  let match: RegExpExecArray | null;
+  while ((match = includeRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop()?.replace(/\.\w+$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractCExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // C/C++ doesn't have explicit exports — all non-static top-level symbols are exported
+  if (entityName && !/\bstatic\b/.test(text) && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- C# ---
+
+function extractCSharpImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  const usingRegex = /using\s+(?:static\s+)?([\w.]+)\s*;/g;
+  let match: RegExpExecArray | null;
+  while ((match = usingRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split(".").pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractCSharpExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  if (entityName && /\bpublic\b/.test(text) && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Ruby ---
+
+function extractRubyImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  const requireRegex = /require(?:_relative)?\s+["']([^"']+)["']/g;
+  let match: RegExpExecArray | null;
+  while ((match = requireRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractRubyExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Ruby doesn't have explicit exports — all classes/modules are public by default
+  if (entityName && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- PHP ---
+
+function extractPHPImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  const useRegex = /use\s+([\w\\]+)(?:\s+as\s+(\w+))?\s*;/g;
+  let match: RegExpExecArray | null;
+  while ((match = useRegex.exec(text)) !== null) {
+    const source = match[1];
+    const alias = match[2];
+    const name = alias ?? source.split("\\").pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractPHPExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // PHP public classes/functions are exported by default
+  if (entityName && entityType !== "import" && entityType !== "module") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Scala ---
+
+function extractScalaImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  const importRegex = /import\s+([\w.]+)(?:\.(\{[^}]+\}|_|\*))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const basePath = match[1];
+    const selector = match[2];
+
+    if (selector?.startsWith("{")) {
+      const names = selector.slice(1, -1).split(",").map(s => {
+        const parts = s.trim().split(/\s*=>\s*/);
+        return parts[parts.length - 1].trim();
+      }).filter(n => n && n !== "_");
+      for (const name of names) {
+        imports.push({ name, source: basePath, isDefault: false, isNamespace: false });
+      }
+    } else if (selector === "_" || selector === "*") {
+      imports.push({ name: "*", source: basePath, isDefault: false, isNamespace: true });
+    } else {
+      const name = basePath.split(".").pop() ?? basePath;
+      imports.push({ name, source: basePath, isDefault: false, isNamespace: false });
+    }
+  }
+
+  return imports;
+}
+
+function extractScalaExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Scala: public by default unless marked private/protected
+  if (entityName && !/\b(private|protected)\b/.test(text) && entityType !== "import" && entityType !== "package") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- CSS ---
+
+function extractCSSImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  const importRegex = /@import\s+(?:url\s*\(\s*)?["']([^"']+)["'](?:\s*\))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop()?.replace(/\.\w+$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
 }
