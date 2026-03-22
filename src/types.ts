@@ -14,6 +14,8 @@ export interface ChunkImport {
   isDefault: boolean;
   /** Whether this is a namespace import (import * as X) */
   isNamespace: boolean;
+  /** Resolved file path (populated by cross-file resolution) */
+  resolvedPath?: string;
 }
 
 /** A structured export extracted from a chunk */
