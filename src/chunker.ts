@@ -5,6 +5,7 @@ import { extractImports, extractExports } from "./imports";
 import type { Chunk, ChunkImport, ChunkExport, ChunkOptions, ChunkResult, ChunkType, Language } from "./types";
 import { EXTENSION_MAP } from "./types";
 import { extname } from "path";
+import { createHash } from "crypto";
 
 /** Detect language from file path */
 function detectLanguage(filepath: string): Language | null {
@@ -23,6 +24,11 @@ function stripBOM(code: string): string {
     return code.slice(1);
   }
   return code;
+}
+
+/** Compute a content hash for deduplication */
+function hashContent(text: string): string {
+  return createHash("sha256").update(text).digest("hex").slice(0, 16);
 }
 
 /** Map tree-sitter node type to our ChunkType */
@@ -250,7 +256,7 @@ async function extractEntities(tree: Tree, language: Language): Promise<Entity[]
   return entities;
 }
 
-/** Split a range of lines into chunks of at most maxLines */
+/** Split a range of lines into chunks of at most maxLines, with optional overlap */
 function splitLines(
   lines: string[],
   startLine: number,
@@ -258,16 +264,109 @@ function splitLines(
   maxLines: number,
   type: ChunkType,
   name: string | null,
+  overlap: number = 0,
 ): Chunk[] {
   const chunks: Chunk[] = [];
-  for (let i = startLine; i <= endLine; i += maxLines) {
+  const step = Math.max(1, maxLines - overlap);
+  for (let i = startLine; i <= endLine; i += step) {
     const end = Math.min(i + maxLines - 1, endLine);
     const text = lines.slice(i, end + 1).join("\n");
     if (text.trim()) {
       chunks.push({ text, startLine: i, endLine: end, type, name });
     }
+    // If we reached the end, stop
+    if (end >= endLine) break;
   }
   return chunks;
+}
+
+/** Collapse consecutive import chunks into a single chunk, respecting blank-line separators */
+function collapseImports(chunks: Chunk[], lines: string[], maxLines: number): Chunk[] {
+  if (chunks.length <= 1) return chunks;
+
+  const result: Chunk[] = [];
+  let importGroup: Chunk[] = [];
+
+  function flushImportGroup() {
+    if (importGroup.length === 0) return;
+
+    if (importGroup.length === 1) {
+      result.push(importGroup[0]);
+    } else {
+      // Merge the group
+      const first = importGroup[0];
+      const last = importGroup[importGroup.length - 1];
+      const totalLines = last.endLine - first.startLine + 1;
+
+      if (totalLines <= maxLines) {
+        const mergedImports = importGroup.flatMap(c => c.imports ?? []);
+        result.push({
+          text: importGroup.map(c => c.text).join("\n"),
+          startLine: first.startLine,
+          endLine: last.endLine,
+          type: "import",
+          name: null,
+          ...(mergedImports.length > 0 ? { imports: mergedImports } : {}),
+        });
+      } else {
+        // Too large to merge — keep separate
+        result.push(...importGroup);
+      }
+    }
+    importGroup = [];
+  }
+
+  for (const chunk of chunks) {
+    if (chunk.type === "import") {
+      if (importGroup.length > 0) {
+        const prevEnd = importGroup[importGroup.length - 1].endLine;
+        // Check for blank line between this import and the previous one
+        const hasBlankLine = lines.slice(prevEnd + 1, chunk.startLine).some(l => !l.trim());
+        if (hasBlankLine) {
+          flushImportGroup();
+        }
+      }
+      importGroup.push(chunk);
+    } else {
+      flushImportGroup();
+      result.push(chunk);
+    }
+  }
+  flushImportGroup();
+
+  return result;
+}
+
+/** Add metadata to chunks */
+function addMetadata(
+  chunks: Chunk[],
+  filepath: string,
+  language: string | null,
+): Chunk[] {
+  return chunks.map(c => ({
+    ...c,
+    language: language ?? undefined,
+    filePath: filepath,
+    hash: hashContent(c.text),
+  }));
+}
+
+/** Add context information to child chunks */
+function addContext(
+  chunks: Chunk[],
+  parentName: string | null,
+  parentType: ChunkType,
+): Chunk[] {
+  return chunks.map(c => {
+    const context: string[] = [];
+    if (parentName) context.push(parentName);
+    if (c.name && c.name !== parentName) context.push(c.name);
+    return {
+      ...c,
+      context: context.length > 0 ? context : undefined,
+      parentName: parentName ?? undefined,
+    };
+  });
 }
 
 /**
@@ -288,11 +387,25 @@ export async function chunk(
 
   const maxLines = options.maxLines ?? 60;
   const language = options.language ?? detectLanguage(filepath);
+  const strategy = options.strategy ?? "semantic";
+  const overlap = options.overlap ?? 0;
+  const includeContext = options.includeContext ?? false;
+  const includeMetadata = options.includeMetadata ?? false;
 
-  if (!language) {
-    // Unknown language — fall back to line-based splitting
-    const lines = code.split("\n");
-    const chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null);
+  const lines = code.split("\n");
+
+  // Fixed strategy: pure line-based splitting, no AST
+  if (strategy === "fixed") {
+    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
+    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
+    return { chunks, fileImports: [], fileExports: [] };
+  }
+
+  // Semantic and hybrid: try AST parsing
+  if (!language || (strategy === "hybrid" && !QUERIES[language])) {
+    // Unknown language or no queries — fall back to line-based splitting
+    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
+    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
     return { chunks, fileImports: [], fileExports: [] };
   }
 
@@ -301,21 +414,21 @@ export async function chunk(
     tree = await parse(code, language);
   } catch {
     // Parse error — fall back to line-based splitting
-    const lines = code.split("\n");
-    const chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null);
+    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
+    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
     return { chunks, fileImports: [], fileExports: [] };
   }
 
   const entities = await extractEntities(tree, language);
-  const lines = code.split("\n");
   const totalLines = lines.length;
 
   if (entities.length === 0) {
-    const chunks = splitLines(lines, 0, totalLines - 1, maxLines, "block", null);
+    let chunks = splitLines(lines, 0, totalLines - 1, maxLines, "block", null, overlap);
+    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
     return { chunks, fileImports: [], fileExports: [] };
   }
 
-  const chunks: Chunk[] = [];
+  let chunks: Chunk[] = [];
 
   // Filter to only top-level entities (not contained within another entity)
   const topLevel = filterTopLevel(entities);
@@ -335,17 +448,17 @@ export async function chunk(
     if (adjustedStart > cursor) {
       const gapText = lines.slice(cursor, adjustedStart).join("\n");
       if (gapText.trim()) {
-        chunks.push(...splitLines(lines, cursor, adjustedStart - 1, maxLines, "block", null));
+        chunks.push(...splitLines(lines, cursor, adjustedStart - 1, maxLines, "block", null, overlap));
       }
     }
 
     const effectiveStart = Math.min(adjustedStart, entity.startLine);
-    const entityLines = entity.endLine - effectiveStart + 1;
+    const entityLineCount = entity.endLine - effectiveStart + 1;
 
-    if (entityLines <= maxLines) {
+    if (entityLineCount <= maxLines) {
       // Entity fits in one chunk (including leading comments)
       const text = lines.slice(effectiveStart, entity.endLine + 1).join("\n");
-      const chunk: Chunk = {
+      const chk: Chunk = {
         text,
         startLine: effectiveStart,
         endLine: entity.endLine,
@@ -357,18 +470,18 @@ export async function chunk(
       if (entity.type === "import") {
         const imports = extractImports(text, language);
         if (imports.length > 0) {
-          chunk.imports = imports;
+          chk.imports = imports;
           allImports.push(...imports);
         }
       }
 
       const entityExports = extractExports(text, language, entity.type, entity.name);
       if (entityExports.length > 0) {
-        chunk.exports = entityExports;
+        chk.exports = entityExports;
         allExports.push(...entityExports);
       }
 
-      chunks.push(chunk);
+      chunks.push(chk);
     } else {
       // Entity too large — try to split by child entities
       const children = entities.filter(
@@ -379,7 +492,13 @@ export async function chunk(
 
       if (children.length > 0) {
         // Split large entity using its children as boundaries
-        const childChunks = splitByChildren(lines, entity, children, maxLines);
+        let childChunks = splitByChildren(lines, entity, children, maxLines, overlap);
+
+        // Add context to child chunks if enabled
+        if (includeContext) {
+          childChunks = addContext(childChunks, entity.name, entity.type);
+        }
+
         // Extract exports for the parent entity
         const entityExports = extractExports(
           lines.slice(effectiveStart, entity.endLine + 1).join("\n"),
@@ -397,7 +516,7 @@ export async function chunk(
         chunks.push(...childChunks);
       } else {
         // No children — line-based split
-        chunks.push(...splitLines(lines, effectiveStart, entity.endLine, maxLines, entity.type, entity.name));
+        chunks.push(...splitLines(lines, effectiveStart, entity.endLine, maxLines, entity.type, entity.name, overlap));
       }
     }
 
@@ -408,8 +527,16 @@ export async function chunk(
   if (cursor < totalLines) {
     const gapText = lines.slice(cursor, totalLines).join("\n");
     if (gapText.trim()) {
-      chunks.push(...splitLines(lines, cursor, totalLines - 1, maxLines, "block", null));
+      chunks.push(...splitLines(lines, cursor, totalLines - 1, maxLines, "block", null, overlap));
     }
+  }
+
+  // Collapse consecutive imports
+  chunks = collapseImports(chunks, lines, maxLines);
+
+  // Add metadata if requested
+  if (includeMetadata) {
+    chunks = addMetadata(chunks, filepath, language);
   }
 
   return { chunks, fileImports: allImports, fileExports: allExports };
@@ -445,6 +572,7 @@ function splitByChildren(
   parent: Entity,
   children: Entity[],
   maxLines: number,
+  overlap: number = 0,
 ): Chunk[] {
   const chunks: Chunk[] = [];
   let cursor = parent.startLine;
@@ -457,7 +585,7 @@ function splitByChildren(
       if (gapSize > 0) {
         const text = lines.slice(cursor, child.startLine).join("\n");
         if (text.trim()) {
-          chunks.push(...splitLines(lines, cursor, gapEnd, maxLines, parent.type, parent.name));
+          chunks.push(...splitLines(lines, cursor, gapEnd, maxLines, parent.type, parent.name, overlap));
         }
       }
     }
@@ -473,7 +601,7 @@ function splitByChildren(
         name: child.name,
       });
     } else {
-      chunks.push(...splitLines(lines, child.startLine, child.endLine, maxLines, child.type, child.name));
+      chunks.push(...splitLines(lines, child.startLine, child.endLine, maxLines, child.type, child.name, overlap));
     }
 
     cursor = child.endLine + 1;
@@ -483,7 +611,7 @@ function splitByChildren(
   if (cursor <= parent.endLine) {
     const text = lines.slice(cursor, parent.endLine + 1).join("\n");
     if (text.trim()) {
-      chunks.push(...splitLines(lines, cursor, parent.endLine, maxLines, parent.type, parent.name));
+      chunks.push(...splitLines(lines, cursor, parent.endLine, maxLines, parent.type, parent.name, overlap));
     }
   }
 

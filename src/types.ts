@@ -56,6 +56,16 @@ export interface Chunk {
   imports?: ChunkImport[];
   /** Structured exports (populated on export/declaration chunks) */
   exports?: ChunkExport[];
+  /** Parent scope chain when context injection is enabled (e.g., ["JsonParser", "parse"]) */
+  context?: string[];
+  /** Name of the enclosing entity when this chunk is a child (e.g., class name for a method) */
+  parentName?: string;
+  /** Detected language */
+  language?: string;
+  /** Source file path */
+  filePath?: string;
+  /** Content hash for deduplication */
+  hash?: string;
 }
 
 export type ChunkType =
@@ -90,11 +100,22 @@ export type ChunkType =
   | "block"  // gap or merged block
   ;
 
+/** Chunking strategy */
+export type ChunkStrategy = "semantic" | "fixed" | "hybrid";
+
 export interface ChunkOptions {
   /** Maximum chunk size in lines. Default: 60 */
   maxLines?: number;
   /** Override automatic language detection */
   language?: Language;
+  /** Include parent scope context in child chunks. Default: false */
+  includeContext?: boolean;
+  /** Include metadata (language, filePath, hash) in chunks. Default: false */
+  includeMetadata?: boolean;
+  /** Number of lines to overlap between adjacent line-based chunks. Default: 0 */
+  overlap?: number;
+  /** Chunking strategy. Default: "semantic" */
+  strategy?: ChunkStrategy;
 }
 
 /** File extension to language mapping */
