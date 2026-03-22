@@ -1,7 +1,8 @@
 import type { Node as SyntaxNode, Tree } from "web-tree-sitter";
 import { parse, loadQuery } from "./parser";
 import { QUERIES } from "./queries";
-import type { Chunk, ChunkOptions, ChunkType, Language } from "./types";
+import { extractImports, extractExports } from "./imports";
+import type { Chunk, ChunkImport, ChunkExport, ChunkOptions, ChunkResult, ChunkType, Language } from "./types";
 import { EXTENSION_MAP } from "./types";
 import { extname } from "path";
 
@@ -9,6 +10,19 @@ import { extname } from "path";
 function detectLanguage(filepath: string): Language | null {
   const ext = extname(filepath).toLowerCase();
   return EXTENSION_MAP[ext] ?? null;
+}
+
+/** Normalize line endings to \n */
+function normalizeLineEndings(code: string): string {
+  return code.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+/** Strip BOM marker from start of file */
+function stripBOM(code: string): string {
+  if (code.charCodeAt(0) === 0xFEFF) {
+    return code.slice(1);
+  }
+  return code;
 }
 
 /** Map tree-sitter node type to our ChunkType */
@@ -79,6 +93,67 @@ interface Entity {
   endLine: number;
 }
 
+/** Check if a line is a comment */
+function isCommentLine(line: string, language: Language): boolean {
+  const trimmed = line.trim();
+  switch (language) {
+    case "typescript":
+    case "javascript":
+    case "rust":
+    case "go":
+    case "java":
+      return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/");
+    case "python":
+      return trimmed.startsWith("#") || trimmed.startsWith('"""') || trimmed.startsWith("'''");
+    default:
+      return false;
+  }
+}
+
+/** Check if a line is a decorator */
+function isDecoratorLine(line: string, language: Language): boolean {
+  const trimmed = line.trim();
+  switch (language) {
+    case "python":
+      return trimmed.startsWith("@");
+    case "typescript":
+    case "javascript":
+    case "java":
+      return trimmed.startsWith("@") && !trimmed.startsWith("@interface"); // @interface is Java annotation type
+    default:
+      return false;
+  }
+}
+
+/**
+ * Find leading comments and decorators for an entity.
+ * Returns the adjusted start line that includes the leading context.
+ */
+function findLeadingContext(
+  lines: string[],
+  entityStartLine: number,
+  prevEndLine: number,
+  language: Language,
+): number {
+  let start = entityStartLine;
+
+  // Walk backwards from the entity to find attached comments/decorators
+  for (let i = entityStartLine - 1; i > prevEndLine; i--) {
+    const line = lines[i];
+    if (!line.trim()) {
+      // Blank line breaks the attachment
+      break;
+    }
+    if (isCommentLine(line, language) || isDecoratorLine(line, language)) {
+      start = i;
+    } else {
+      break;
+    }
+  }
+
+  return start;
+}
+
 /** Extract entities from AST using tree-sitter queries */
 async function extractEntities(tree: Tree, language: Language): Promise<Entity[]> {
   const queryString = QUERIES[language];
@@ -140,29 +215,43 @@ function splitLines(
  * @param filepath - File path (used for language detection)
  * @param code - Source code string
  * @param options - Chunking options
- * @returns Array of chunks
+ * @returns ChunkResult with chunks and file-level import/export metadata
  */
 export async function chunk(
   filepath: string,
   code: string,
   options: ChunkOptions = {},
-): Promise<Chunk[]> {
+): Promise<ChunkResult> {
+  // Robustness: normalize input
+  code = stripBOM(normalizeLineEndings(code));
+
   const maxLines = options.maxLines ?? 60;
   const language = options.language ?? detectLanguage(filepath);
 
   if (!language) {
     // Unknown language — fall back to line-based splitting
     const lines = code.split("\n");
-    return splitLines(lines, 0, lines.length - 1, maxLines, "block", null);
+    const chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null);
+    return { chunks, fileImports: [], fileExports: [] };
   }
 
-  const tree = await parse(code, language);
+  let tree;
+  try {
+    tree = await parse(code, language);
+  } catch {
+    // Parse error — fall back to line-based splitting
+    const lines = code.split("\n");
+    const chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null);
+    return { chunks, fileImports: [], fileExports: [] };
+  }
+
   const entities = await extractEntities(tree, language);
   const lines = code.split("\n");
   const totalLines = lines.length;
 
   if (entities.length === 0) {
-    return splitLines(lines, 0, totalLines - 1, maxLines, "block", null);
+    const chunks = splitLines(lines, 0, totalLines - 1, maxLines, "block", null);
+    return { chunks, fileImports: [], fileExports: [] };
   }
 
   const chunks: Chunk[] = [];
@@ -171,28 +260,54 @@ export async function chunk(
   const topLevel = filterTopLevel(entities);
 
   let cursor = 0; // current line position
+  const allImports: ChunkImport[] = [];
+  const allExports: ChunkExport[] = [];
 
-  for (const entity of topLevel) {
-    // Gap before this entity
-    if (entity.startLine > cursor) {
-      const gapText = lines.slice(cursor, entity.startLine).join("\n");
+  for (let idx = 0; idx < topLevel.length; idx++) {
+    const entity = topLevel[idx];
+
+    // Find leading comments/decorators that should attach to this entity
+    const prevEnd = cursor - 1;
+    const adjustedStart = findLeadingContext(lines, entity.startLine, prevEnd, language);
+
+    // Gap before this entity (excluding attached comments)
+    if (adjustedStart > cursor) {
+      const gapText = lines.slice(cursor, adjustedStart).join("\n");
       if (gapText.trim()) {
-        chunks.push(...splitLines(lines, cursor, entity.startLine - 1, maxLines, "block", null));
+        chunks.push(...splitLines(lines, cursor, adjustedStart - 1, maxLines, "block", null));
       }
     }
 
-    const entityLines = entity.endLine - entity.startLine + 1;
+    const effectiveStart = Math.min(adjustedStart, entity.startLine);
+    const entityLines = entity.endLine - effectiveStart + 1;
 
     if (entityLines <= maxLines) {
-      // Entity fits in one chunk
-      const text = lines.slice(entity.startLine, entity.endLine + 1).join("\n");
-      chunks.push({
+      // Entity fits in one chunk (including leading comments)
+      const text = lines.slice(effectiveStart, entity.endLine + 1).join("\n");
+      const chunk: Chunk = {
         text,
-        startLine: entity.startLine,
+        startLine: effectiveStart,
         endLine: entity.endLine,
         type: entity.type,
         name: entity.name,
-      });
+      };
+
+      // Extract structured imports/exports
+      if (entity.type === "import") {
+        const imports = extractImports(text, language);
+        if (imports.length > 0) {
+          chunk.imports = imports;
+          allImports.push(...imports);
+        }
+      }
+
+      const entityExports = extractExports(text, language, entity.type, entity.name);
+      if (entityExports.length > 0) {
+        chunk.exports = entityExports;
+        allExports.push(...entityExports);
+      }
+
+      chunks.push(chunk);
     } else {
       // Entity too large — try to split by child entities
       const children = entities.filter(
@@ -203,10 +318,25 @@ export async function chunk(
 
       if (children.length > 0) {
         // Split large entity using its children as boundaries
-        chunks.push(...splitByChildren(lines, entity, children, maxLines));
+        const childChunks = splitByChildren(lines, entity, children, maxLines);
+        // Extract exports for the parent entity
+        const entityExports = extractExports(
+          lines.slice(effectiveStart, entity.endLine + 1).join("\n"),
+          language,
+          entity.type,
+          entity.name,
+        );
+        if (entityExports.length > 0) {
+          allExports.push(...entityExports);
+          // Attach exports to the first child chunk
+          if (childChunks.length > 0) {
+            childChunks[0].exports = entityExports;
+          }
+        }
+        chunks.push(...childChunks);
       } else {
         // No children — line-based split
-        chunks.push(...splitLines(lines, entity.startLine, entity.endLine, maxLines, entity.type, entity.name));
+        chunks.push(...splitLines(lines, effectiveStart, entity.endLine, maxLines, entity.type, entity.name));
       }
     }
 
@@ -221,7 +351,7 @@ export async function chunk(
     }
   }
 
-  return chunks;
+  return { chunks, fileImports: allImports, fileExports: allExports };
 }
 
 /** Filter entities to only top-level (not nested inside another entity) */
@@ -318,12 +448,16 @@ export function mergeSmallChunks(chunks: Chunk[], maxLines: number): Chunk[] {
       (curr.type === "block" || curr.type === "import");
 
     if (mergeable && prevSize + currSize <= maxLines && curr.startLine === prev.endLine + 1) {
+      // Merge imports from both chunks
+      const mergedImports = [...(prev.imports ?? []), ...(curr.imports ?? [])];
+
       result[result.length - 1] = {
         text: prev.text + "\n" + curr.text,
         startLine: prev.startLine,
         endLine: curr.endLine,
         type: "block",
         name: null,
+        ...(mergedImports.length > 0 ? { imports: mergedImports } : {}),
       };
     } else {
       result.push(curr);

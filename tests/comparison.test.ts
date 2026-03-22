@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { chunk as bunChunk } from "../src";
+import { chunk as bunChunkFn } from "../src";
 import { chunk as codeChunk } from "code-chunk";
 import { readFile } from "fs/promises";
 import { join } from "path";
@@ -8,6 +8,12 @@ const FIXTURES = join(import.meta.dir, "fixtures");
 
 async function readFixture(name: string): Promise<string> {
   return readFile(join(FIXTURES, name), "utf-8");
+}
+
+/** Wrapper to get just chunks array for comparison */
+async function bunChunk(file: string, code: string, options?: any) {
+  const result = await bunChunkFn(file, code, options);
+  return result.chunks;
 }
 
 /**

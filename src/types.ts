@@ -1,6 +1,42 @@
 /** Supported languages */
 export type Language = "typescript" | "javascript" | "python" | "rust" | "go" | "java";
 
+/** A structured import extracted from a chunk */
+export interface ChunkImport {
+  /** Imported name (e.g., "readFile", "Config") */
+  name: string;
+  /** Module specifier (e.g., "fs/promises", "./utils") */
+  source: string;
+  /** Whether this is a default import */
+  isDefault: boolean;
+  /** Whether this is a namespace import (import * as X) */
+  isNamespace: boolean;
+}
+
+/** A structured export extracted from a chunk */
+export interface ChunkExport {
+  /** Exported symbol name */
+  name: string;
+  /** Entity type (function, class, interface, etc.) */
+  type: ChunkType;
+  /** Whether this is the default export */
+  isDefault: boolean;
+  /** Whether this is a re-export from another module */
+  isReExport: boolean;
+  /** Source module if this is a re-export */
+  reExportSource?: string;
+}
+
+/** Result of chunking a file — includes chunks and file-level metadata */
+export interface ChunkResult {
+  /** The chunks extracted from the file */
+  chunks: Chunk[];
+  /** All imports aggregated across the file */
+  fileImports: ChunkImport[];
+  /** All exports aggregated across the file */
+  fileExports: ChunkExport[];
+}
+
 /** A single chunk extracted from source code */
 export interface Chunk {
   /** Raw chunk text */
@@ -13,6 +49,10 @@ export interface Chunk {
   type: ChunkType;
   /** Entity name if available */
   name: string | null;
+  /** Structured imports (populated on import chunks) */
+  imports?: ChunkImport[];
+  /** Structured exports (populated on export/declaration chunks) */
+  exports?: ChunkExport[];
 }
 
 export type ChunkType =
