@@ -2,9 +2,8 @@
 
 import { parseArgs } from "util";
 import { chunk } from "./chunker";
-import { chunkFile } from "./stream";
-import { chunkDirectory } from "./stream";
-import type { ChunkOptions, ChunkStrategy, Language } from "./types";
+import { chunkFile, chunkDirectory } from "./stream";
+import type { Chunk, ChunkImport, ChunkExport, ChunkOptions, ChunkStrategy, Language } from "./types";
 import { EXTENSION_MAP } from "./types";
 import { stat } from "fs/promises";
 import { resolve } from "path";
@@ -61,12 +60,41 @@ Examples:
 }
 
 const target = resolve(positionals[0]);
-const format = values.format as "json" | "jsonl" | "text";
+
+const format = values.format as string;
+if (!["json", "jsonl", "text"].includes(format)) {
+  console.error(`Error: --format must be one of: json, jsonl, text (got "${format}")`);
+  process.exit(1);
+}
+
+const maxLines = parseInt(values["max-lines"]!);
+if (isNaN(maxLines) || maxLines <= 0) {
+  console.error("Error: --max-lines must be a positive integer");
+  process.exit(1);
+}
+
+const overlap = parseInt(values.overlap!);
+if (isNaN(overlap) || overlap < 0) {
+  console.error("Error: --overlap must be a non-negative integer");
+  process.exit(1);
+}
+
+const strategy = values.strategy as string;
+if (!["semantic", "fixed", "hybrid"].includes(strategy)) {
+  console.error(`Error: --strategy must be one of: semantic, fixed, hybrid (got "${strategy}")`);
+  process.exit(1);
+}
+
+const validLanguages = Object.values(EXTENSION_MAP);
+if (values.language && !validLanguages.includes(values.language as Language)) {
+  console.error(`Error: --language must be one of: ${[...new Set(validLanguages)].join(", ")} (got "${values.language}")`);
+  process.exit(1);
+}
 
 const chunkOptions: ChunkOptions = {
-  maxLines: parseInt(values["max-lines"]!),
-  strategy: values.strategy as ChunkStrategy,
-  overlap: parseInt(values.overlap!),
+  maxLines,
+  strategy: strategy as ChunkStrategy,
+  overlap,
   includeMetadata: values["include-metadata"],
   includeContext: values["include-context"],
   ...(values.language ? { language: values.language as Language } : {}),
@@ -120,7 +148,7 @@ try {
 
     if (format === "json") {
       // For JSON, output as an array of file results
-      const output: any[] = [];
+      const output: { file: string; chunks: Chunk[]; fileImports: ChunkImport[]; fileExports: ChunkExport[] }[] = [];
       for (const [filepath, result] of dirResult.files) {
         output.push({
           file: filepath,
@@ -143,7 +171,7 @@ try {
     console.error(`Error: ${target} is not a file or directory`);
     process.exit(1);
   }
-} catch (err: any) {
-  console.error(`Error: ${err.message}`);
+} catch (err) {
+  console.error(`Error: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 }

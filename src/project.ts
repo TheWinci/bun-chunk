@@ -1,10 +1,8 @@
-import { chunkFile } from "./stream";
-import { chunkDirectory } from "./stream";
+import { chunkFile, chunkDirectory } from "./stream";
 import { resolveImport, loadTsConfig, type TsConfig } from "./resolver";
 import type { ChunkImport, ChunkExport, ChunkResult, ChunkOptions } from "./types";
 import { EXTENSION_MAP } from "./types";
-import { extname } from "path";
-import { resolve } from "path";
+import { extname, resolve } from "path";
 
 /** File-level import/export summary */
 export interface FileContext {
@@ -121,18 +119,19 @@ export async function chunkProject(
       // Find export chunks and annotate with usedBy
       for (const chunk of ctx.result.chunks) {
         if (chunk.exports && chunk.exports.length > 0) {
-          (chunk as any).usedBy = [...usedByFiles];
+          chunk.usedBy = [...usedByFiles];
         }
       }
     }
 
-    // For import chunks, annotate with definedIn
+    // For import chunks, collect all resolved paths
     for (const chunk of ctx.result.chunks) {
       if (chunk.imports) {
-        for (const imp of chunk.imports) {
-          if (imp.resolvedPath) {
-            (chunk as any).definedIn = imp.resolvedPath;
-          }
+        const resolvedPaths = chunk.imports
+          .map(imp => imp.resolvedPath)
+          .filter((p): p is string => !!p);
+        if (resolvedPaths.length > 0) {
+          chunk.definedIn = [...new Set(resolvedPaths)];
         }
       }
     }

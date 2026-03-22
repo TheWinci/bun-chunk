@@ -68,6 +68,10 @@ export interface Chunk {
   filePath?: string;
   /** Content hash for deduplication */
   hash?: string;
+  /** Files that import this chunk's exports (populated by chunkProject) */
+  usedBy?: string[];
+  /** Resolved file paths where this chunk's imports are defined (populated by chunkProject) */
+  definedIn?: string[];
 }
 
 export type ChunkType =
@@ -93,12 +97,7 @@ export type ChunkType =
   | "selector"
   | "rule"
   | "section"
-  | "heading"
   | "element"
-  | "object"
-  | "companion"
-  | "protocol"
-  | "extension"
   | "block"  // gap or merged block
   ;
 

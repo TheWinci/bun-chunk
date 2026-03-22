@@ -1,4 +1,4 @@
-import { existsSync } from "fs";
+import { existsSync, statSync } from "fs";
 import { resolve, dirname, join, extname } from "path";
 import type { Language } from "./types";
 
@@ -49,8 +49,6 @@ export function loadTsConfig(projectRoot: string): TsConfig | undefined {
   if (!existsSync(configPath)) return undefined;
 
   try {
-    const file = Bun.file(configPath);
-    // Use synchronous read since we need this during resolution
     const raw = require(configPath);
     const compilerOptions = raw.compilerOptions ?? {};
     return {
@@ -80,32 +78,26 @@ function isRelativeImport(specifier: string, language: Language | null): boolean
 
 /** Try candidate paths with various extensions */
 function tryResolve(base: string, extensions: string[]): string | undefined {
-  // Try exact path first
-  if (existsSync(base) && !isDirectory(base)) return base;
+  // Try exact path first — single stat call
+  try {
+    const s = statSync(base);
+    if (s.isFile()) return base;
+    if (s.isDirectory()) {
+      for (const ext of extensions) {
+        const indexPath = join(base, `index${ext}`);
+        if (existsSync(indexPath)) return indexPath;
+      }
+    }
+  } catch {
+    // path doesn't exist — try with extensions
+  }
 
-  // Try with extensions
   for (const ext of extensions) {
     const withExt = base + ext;
     if (existsSync(withExt)) return withExt;
   }
 
-  // Try as directory with index file
-  if (isDirectory(base)) {
-    for (const ext of extensions) {
-      const indexPath = join(base, `index${ext}`);
-      if (existsSync(indexPath)) return indexPath;
-    }
-  }
-
   return undefined;
-}
-
-function isDirectory(path: string): boolean {
-  try {
-    return require("fs").statSync(path).isDirectory();
-  } catch {
-    return false;
-  }
 }
 
 function resolveJsTs(
@@ -127,7 +119,8 @@ function resolveJsTs(
     const baseDir = tsConfig.baseUrl ? resolve(projectRoot, tsConfig.baseUrl) : projectRoot;
 
     for (const [pattern, targets] of Object.entries(tsConfig.paths)) {
-      const regex = new RegExp("^" + pattern.replace("*", "(.*)") + "$");
+      const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp("^" + escaped.replace("\\*", "(.*)") + "$");
       const match = specifier.match(regex);
       if (match) {
         for (const target of targets) {

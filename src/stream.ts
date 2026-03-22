@@ -1,9 +1,11 @@
 import { chunk } from "./chunker";
 import type { Chunk, ChunkOptions, ChunkResult } from "./types";
 import { EXTENSION_MAP } from "./types";
-import { extname } from "path";
+import { extname, join } from "path";
 
-/** Yield chunks one at a time as an async generator */
+/** Yield chunks one at a time as an async generator.
+ *  Note: this is an iteration convenience — the full chunk result is computed eagerly,
+ *  then yielded incrementally. For true streaming over multiple files, use chunkDirectoryStream. */
 export async function* chunkStream(
   filepath: string,
   code: string,
@@ -25,7 +27,8 @@ export async function chunkFile(
   return chunk(filepath, code, options);
 }
 
-/** Stream chunks from a file on disk */
+/** Yield chunks from a file on disk one at a time.
+ *  Note: the file is read and chunked eagerly — this is an iteration convenience, not true streaming. */
 export async function* chunkFileStream(
   filepath: string,
   options: ChunkOptions = {},
@@ -78,6 +81,8 @@ export interface DirectoryResult {
   totalChunks: number;
   /** Total number of files processed */
   totalFiles: number;
+  /** Files that failed to read or parse */
+  errors: { filepath: string; error: string }[];
 }
 
 /** Recursively discover supported files in a directory */
@@ -94,7 +99,7 @@ async function discoverFiles(
     const segments = entry.split("/");
     if (segments.some(s => ignoreSet.has(s))) continue;
 
-    const fullPath = `${dirpath}/${entry}`;
+    const fullPath = join(dirpath, entry);
     if (isSupportedFile(entry)) {
       files.push(fullPath);
     }
@@ -120,6 +125,7 @@ export async function chunkDirectory(
   const filePaths = await discoverFiles(dirpath, ignoreSet, globPattern);
 
   const files = new Map<string, ChunkResult>();
+  const errors: { filepath: string; error: string }[] = [];
   let totalChunks = 0;
 
   for (let i = 0; i < filePaths.length; i++) {
@@ -135,12 +141,12 @@ export async function chunkDirectory(
         fileIndex: i,
         totalFiles: filePaths.length,
       });
-    } catch {
-      // Skip files that fail to read/parse
+    } catch (err) {
+      errors.push({ filepath, error: err instanceof Error ? err.message : String(err) });
     }
   }
 
-  return { files, totalChunks, totalFiles: files.size };
+  return { files, totalChunks, totalFiles: files.size, errors };
 }
 
 /** Stream chunks from all supported files in a directory */

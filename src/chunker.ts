@@ -32,108 +32,109 @@ function hashContent(text: string): string {
 }
 
 /** Map tree-sitter node type to our ChunkType */
-function nodeTypeToChunkType(nodeType: string, language: Language): ChunkType {
-  const map: Record<string, ChunkType> = {
-    // TypeScript / JavaScript
-    function_declaration: "function",
-    generator_function_declaration: "function",
-    arrow_function: "function",
-    class_declaration: "class",
-    abstract_class_declaration: "class",
-    method_definition: "method",
-    interface_declaration: "interface",
-    type_alias_declaration: "type",
-    enum_declaration: "enum",
-    import_statement: "import",
-    export_statement: "export",
-    internal_module: "module",
-    variable_declarator: "variable",
-    public_field_definition: "field",
-    lexical_declaration: "variable",
-    // Python
-    class_definition: "class",
-    function_definition: "function",
-    import_from_statement: "import",
-    // Rust
-    struct_item: "struct",
-    enum_item: "enum",
-    trait_item: "trait",
-    impl_item: "impl",
-    function_item: "function",
-    mod_item: "module",
-    type_item: "type",
-    const_item: "constant",
-    use_declaration: "import",
-    // Go
-    type_declaration: "type",
-    type_spec: "type",
-    method_declaration: "method",
-    const_declaration: "constant",
-    const_spec: "constant",
-    var_declaration: "variable",
-    var_spec: "variable",
-    method_elem: "method",
-    field_declaration: "field",
-    import_declaration: "import",
-    package_clause: "package",
-    // Java
-    package_declaration: "package",
-    import_declaration_java: "import",
-    record_declaration: "record",
-    annotation_type_declaration: "annotation_type",
-    method_declaration: "method",
-    constructor_declaration: "method",
-    field_declaration_java: "field",
-    static_initializer: "block",
-    annotation_type_element_declaration: "method",
-    enum_constant: "constant",
-    // C
-    preproc_include: "import",
-    preproc_def: "constant",
-    preproc_function_def: "function",
-    struct_specifier: "struct",
-    enum_specifier: "enum",
-    union_specifier: "struct",
-    type_definition: "type",
-    // C++
-    class_specifier: "class",
-    namespace_definition: "module",
-    template_declaration: "type",
-    // C#
-    struct_declaration: "struct",
-    namespace_declaration: "module",
-    property_declaration: "property",
-    event_declaration: "variable",
-    delegate_declaration: "type",
-    using_directive: "import",
-    // Ruby
-    module: "module",
-    class: "class",
-    method: "method",
-    singleton_method: "method",
-    // PHP
-    trait_declaration: "trait",
-    namespace_use_declaration: "import",
-    namespace_definition_php: "module",
-    // Scala
-    object_definition: "class",
-    trait_definition: "trait",
-    val_definition: "variable",
-    var_definition: "variable",
-    // HTML
-    element: "element",
-    // CSS
-    rule_set: "selector",
-    media_statement: "rule",
-    keyframes_statement: "rule",
-    // YAML
-    block_mapping_pair: "property",
-    // TOML
-    table: "section",
-    table_array_element: "section",
-    pair: "property",
-  };
-  return map[nodeType] ?? "block";
+const NODE_TYPE_MAP: Record<string, ChunkType> = {
+  // TypeScript / JavaScript
+  function_declaration: "function",
+  generator_function_declaration: "function",
+  arrow_function: "function",
+  class_declaration: "class",
+  abstract_class_declaration: "class",
+  method_definition: "method",
+  interface_declaration: "interface",
+  type_alias_declaration: "type",
+  enum_declaration: "enum",
+  import_statement: "import",
+  export_statement: "export",
+  internal_module: "module",
+  variable_declarator: "variable",
+  public_field_definition: "field",
+  lexical_declaration: "variable",
+  // Python
+  class_definition: "class",
+  function_definition: "function",
+  import_from_statement: "import",
+  // Rust
+  struct_item: "struct",
+  enum_item: "enum",
+  trait_item: "trait",
+  impl_item: "impl",
+  function_item: "function",
+  mod_item: "module",
+  type_item: "type",
+  const_item: "constant",
+  use_declaration: "import",
+  // Go
+  type_declaration: "type",
+  type_spec: "type",
+  method_declaration: "method",
+  const_declaration: "constant",
+  const_spec: "constant",
+  var_declaration: "variable",
+  var_spec: "variable",
+  method_elem: "method",
+  field_declaration: "field",
+  import_declaration: "import",
+  package_clause: "package",
+  // Java
+  package_declaration: "package",
+  import_declaration_java: "import",
+  record_declaration: "record",
+  annotation_type_declaration: "annotation_type",
+  method_declaration: "method",
+  constructor_declaration: "method",
+  field_declaration_java: "field",
+  static_initializer: "block",
+  annotation_type_element_declaration: "method",
+  enum_constant: "constant",
+  // C
+  preproc_include: "import",
+  preproc_def: "constant",
+  preproc_function_def: "function",
+  struct_specifier: "struct",
+  enum_specifier: "enum",
+  union_specifier: "struct",
+  type_definition: "type",
+  // C++
+  class_specifier: "class",
+  namespace_definition: "module",
+  template_declaration: "type",
+  // C#
+  struct_declaration: "struct",
+  namespace_declaration: "module",
+  property_declaration: "property",
+  event_declaration: "variable",
+  delegate_declaration: "type",
+  using_directive: "import",
+  // Ruby
+  module: "module",
+  class: "class",
+  method: "method",
+  singleton_method: "method",
+  // PHP
+  trait_declaration: "trait",
+  namespace_use_declaration: "import",
+  namespace_definition_php: "module",
+  // Scala
+  object_definition: "class",
+  trait_definition: "trait",
+  val_definition: "variable",
+  var_definition: "variable",
+  // HTML
+  element: "element",
+  // CSS
+  rule_set: "selector",
+  media_statement: "rule",
+  keyframes_statement: "rule",
+  // YAML
+  block_mapping_pair: "property",
+  // TOML
+  table: "section",
+  table_array_element: "section",
+  pair: "property",
+};
+
+function nodeTypeToChunkType(nodeType: string): ChunkType {
+  return NODE_TYPE_MAP[nodeType] ?? "block";
 }
 
 interface Entity {
@@ -158,14 +159,14 @@ function isCommentLine(line: string, language: Language): boolean {
     case "csharp":
     case "php":
     case "scala":
-      return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/");
+      return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith(" *") || trimmed === "*" || trimmed.startsWith("*/");
     case "python":
     case "ruby":
       return trimmed.startsWith("#") || trimmed.startsWith('"""') || trimmed.startsWith("'''");
     case "html":
-      return trimmed.startsWith("<!--") || trimmed.startsWith("-->") || trimmed.startsWith("-->");
+      return trimmed.startsWith("<!--") || trimmed.startsWith("-->");
     case "css":
-      return trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/");
+      return trimmed.startsWith("/*") || trimmed.startsWith(" *") || trimmed === "*" || trimmed.startsWith("*/");
     default:
       return false;
   }
@@ -245,7 +246,7 @@ async function extractEntities(tree: Tree, language: Language): Promise<Entity[]
     entities.push({
       node,
       name: nameCapture?.node.text ?? null,
-      type: nodeTypeToChunkType(node.type, language),
+      type: nodeTypeToChunkType(node.type),
       startLine: node.startPosition.row,
       endLine: node.endPosition.row,
     });
@@ -301,7 +302,7 @@ function collapseImports(chunks: Chunk[], lines: string[], maxLines: number): Ch
       if (totalLines <= maxLines) {
         const mergedImports = importGroup.flatMap(c => c.imports ?? []);
         result.push({
-          text: importGroup.map(c => c.text).join("\n"),
+          text: lines.slice(first.startLine, last.endLine + 1).join("\n"),
           startLine: first.startLine,
           endLine: last.endLine,
           type: "import",
@@ -369,6 +370,20 @@ function addContext(
   });
 }
 
+/** Build a fallback line-based result when AST parsing isn't available */
+function fallbackResult(
+  lines: string[],
+  maxLines: number,
+  overlap: number,
+  filepath: string,
+  language: Language | null,
+  includeMetadata: boolean,
+): ChunkResult {
+  let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
+  if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
+  return { chunks, fileImports: [], fileExports: [] };
+}
+
 /**
  * Chunk source code into AST-aware segments.
  *
@@ -396,36 +411,26 @@ export async function chunk(
 
   // Fixed strategy: pure line-based splitting, no AST
   if (strategy === "fixed") {
-    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
-    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
-    return { chunks, fileImports: [], fileExports: [] };
+    return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
   }
 
   // Semantic and hybrid: try AST parsing
   if (!language || (strategy === "hybrid" && !QUERIES[language])) {
-    // Unknown language or no queries — fall back to line-based splitting
-    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
-    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
-    return { chunks, fileImports: [], fileExports: [] };
+    return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
   }
 
   let tree;
   try {
     tree = await parse(code, language);
   } catch {
-    // Parse error — fall back to line-based splitting
-    let chunks = splitLines(lines, 0, lines.length - 1, maxLines, "block", null, overlap);
-    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
-    return { chunks, fileImports: [], fileExports: [] };
+    return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
   }
 
   const entities = await extractEntities(tree, language);
   const totalLines = lines.length;
 
   if (entities.length === 0) {
-    let chunks = splitLines(lines, 0, totalLines - 1, maxLines, "block", null, overlap);
-    if (includeMetadata) chunks = addMetadata(chunks, filepath, language);
-    return { chunks, fileImports: [], fileExports: [] };
+    return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
   }
 
   let chunks: Chunk[] = [];
@@ -542,7 +547,8 @@ export async function chunk(
   return { chunks, fileImports: allImports, fileExports: allExports };
 }
 
-/** Filter entities to only top-level (not nested inside another entity) */
+/** Filter entities to only top-level (not nested inside another entity).
+ *  When two entities overlap, the one spanning more lines is kept. */
 function filterTopLevel(entities: Entity[]): Entity[] {
   const result: Entity[] = [];
   let lastEnd = -1;
@@ -551,15 +557,15 @@ function filterTopLevel(entities: Entity[]): Entity[] {
     if (entity.startLine > lastEnd) {
       result.push(entity);
       lastEnd = entity.endLine;
-    } else if (entity.endLine > lastEnd) {
-      // Overlapping but extends further — take the larger one
-      if (result.length > 0) {
-        const prev = result[result.length - 1];
-        if (entity.startLine === prev.startLine && entity.endLine > prev.endLine) {
-          result[result.length - 1] = entity;
-          lastEnd = entity.endLine;
-        }
+    } else if (entity.endLine > lastEnd && result.length > 0) {
+      // Overlapping but extends further — replace with the larger entity
+      const prev = result[result.length - 1];
+      const prevSize = prev.endLine - prev.startLine;
+      const currSize = entity.endLine - entity.startLine;
+      if (currSize > prevSize) {
+        result[result.length - 1] = entity;
       }
+      lastEnd = Math.max(lastEnd, entity.endLine);
     }
   }
 

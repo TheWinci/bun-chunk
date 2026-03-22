@@ -97,14 +97,16 @@ function extractJSImports(text: string): ChunkImport[] {
     }
 
     if (namedStr) {
-      const names = namedStr.split(",").map(s => {
-        const parts = s.trim().split(/\s+as\s+/);
-        return parts[parts.length - 1].trim();
-      }).filter(Boolean);
-      for (const name of names) {
-        // Skip type-only imports in named list
-        if (name === "type") continue;
-        imports.push({ name, source, isDefault: false, isNamespace: false });
+      // Split named imports, handling inline type imports like "type Foo"
+      const items = namedStr.split(",").map(s => s.trim()).filter(Boolean);
+      for (const item of items) {
+        // Skip type-only imports: "type Foo", "type Foo as Bar"
+        if (/^type\s+\w/.test(item)) continue;
+        const parts = item.split(/\s+as\s+/);
+        const name = parts[parts.length - 1].trim();
+        if (name) {
+          imports.push({ name, source, isDefault: false, isNamespace: false });
+        }
       }
     }
   }
@@ -289,12 +291,13 @@ function extractRustImports(text: string): ChunkImport[] {
 
 function extractRustExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   if (entityName && /^pub\s/m.test(text) && entityType !== "import") {
+    const isPubUse = /^pub\s+use\s/m.test(text);
     return [{
       name: entityName,
       type: entityType,
       isDefault: false,
-      isReExport: /^pub\s+use\s/m.test(text),
-      reExportSource: /^pub\s+use\s/m.test(text) ? text.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
+      isReExport: isPubUse,
+      reExportSource: isPubUse ? text.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
     }];
   }
   return [];
@@ -304,29 +307,31 @@ function extractRustExports(text: string, entityType: ChunkType, entityName: str
 
 function extractGoImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
+  const seen = new Set<string>();
 
-  // Single import: import "fmt"
-  // Aliased: import f "fmt"
-  // Grouped: import ( "fmt" \n "os" )
-  const singleRegex = /import\s+(?:(\w+)\s+)?"([^"]+)"/g;
-  let match: RegExpExecArray | null;
-  while ((match = singleRegex.exec(text)) !== null) {
-    const [, alias, source] = match;
+  function addImport(alias: string | undefined, source: string) {
+    if (seen.has(source)) return;
+    seen.add(source);
     const name = alias ?? source.split("/").pop() ?? source;
     imports.push({ name, source, isDefault: false, isNamespace: alias === "." });
   }
 
-  // Grouped imports
+  // Grouped imports (check first to track which sources are in groups)
   const groupRegex = /import\s+\(([^)]*)\)/gs;
+  let match: RegExpExecArray | null;
   while ((match = groupRegex.exec(text)) !== null) {
     const body = match[1];
     const lineRegex = /(?:(\w+)\s+)?"([^"]+)"/g;
     let lineMatch: RegExpExecArray | null;
     while ((lineMatch = lineRegex.exec(body)) !== null) {
-      const [, alias, source] = lineMatch;
-      const name = alias ?? source.split("/").pop() ?? source;
-      imports.push({ name, source, isDefault: false, isNamespace: alias === "." });
+      addImport(lineMatch[1], lineMatch[2]);
     }
+  }
+
+  // Single import: import "fmt" / import f "fmt"
+  const singleRegex = /import\s+(?:(\w+)\s+)?"([^"]+)"/g;
+  while ((match = singleRegex.exec(text)) !== null) {
+    addImport(match[1], match[2]);
   }
 
   return imports;
