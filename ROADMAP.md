@@ -4,15 +4,24 @@ AST-aware code chunking for RAG pipelines — fast, simple, Bun-native.
 
 **Guiding principle**: bun-chunk and [local-rag](https://github.com/TheWinci/local-rag) are companion projects under shared ownership. Each should be excellent standalone, but the integration surface is the priority lens for every decision. bun-chunk owns *parsing and chunking*. local-rag owns *indexing, search, and the dependency graph*. The boundary between them should be clean — bun-chunk provides rich, structured chunk data; local-rag consumes it without needing to regex-parse or post-process.
 
-## Current State (v0.1.0)
+## Current State (v0.1.2)
 
-Released with a complete, tested foundation:
-
-- **6 languages**: TypeScript, JavaScript, Python, Rust, Go, Java
+- **14 languages**: TypeScript, JavaScript, Python, Rust, Go, Java, C, C++, C#, Ruby, PHP, Scala, HTML, CSS
 - **AST-aware chunking** via tree-sitter WASM grammars with language-specific query patterns
-- **18 semantic entity types**: function, class, interface, type, enum, struct, trait, impl, etc.
+- **23 semantic entity types**: function, class, interface, type, enum, struct, trait, impl, module, constant, variable, method, field, package, record, annotation_type, property, selector, rule, section, element, block
 - **Smart splitting**: oversized entities split by children (e.g., methods in a class), with line-based fallback
 - **Chunk merging**: `mergeSmallChunks()` combines adjacent small blocks/imports
+- **Structured imports/exports**: per-chunk and file-level `ChunkImport` / `ChunkExport` data with language-specific extraction
+- **Comment & decorator attachment**: leading comments and decorators attach to their entity
+- **Chunking strategies**: semantic (AST-aware), fixed (line-based), hybrid
+- **Context injection**: optional parent scope chain and context headers for child chunks
+- **Metadata enrichment**: optional language, filePath, content hash fields
+- **Import collapsing**: consecutive imports grouped into single chunks
+- **Line overlap**: configurable line-based overlap between chunks
+- **File & directory chunking**: `chunkFile()`, `chunkDirectory()` with glob/ignore/progress
+- **Streaming**: `chunkStream()`, `chunkFileStream()`, `chunkDirectoryStream()` async generators
+- **Cross-file analysis**: `chunkProject()` with import resolution, dependency graph, and chunk enrichment (`usedBy`, `definedIn`)
+- **CLI tool**: `bunx @winci/bun-chunk` with json/jsonl/text output formats
 - **Full test suite**: entity extraction per language, line coverage, overlap detection, comparison benchmarks vs `code-chunk`
 
 ### Current integration with local-rag
@@ -29,38 +38,38 @@ The roadmap below is ordered to systematically eliminate these workarounds and u
 
 ---
 
-## Phase 1 — Structured Imports/Exports & Edge Cases
+## Phase 1 — Structured Imports/Exports & Edge Cases ✓
 
 **Goal**: Eliminate local-rag's regex post-processing by returning structured import/export data natively. Fix real-world edge cases that affect chunk quality.
 
-### 1.1 Structured Import/Export Extraction
+### 1.1 Structured Import/Export Extraction ✓
 
 local-rag currently regex-parses bun-chunk's import chunk text to populate its `file_imports` and `file_exports` tables. bun-chunk should return this data structured, since it already has the AST.
 
-- [ ] Define `ChunkImport` type: `{ name: string; source: string; isDefault: boolean; isNamespace: boolean }`
-- [ ] Define `ChunkExport` type: `{ name: string; type: ChunkType; isDefault: boolean; isReExport: boolean; reExportSource?: string }`
-- [ ] Extract imports from AST for all 6 supported languages (ES modules, Python `import`/`from`, Rust `use`, Go `import`, Java `import`)
-- [ ] Extract exports from AST: named exports, default exports, re-exports (`export { foo } from "./bar"`, `pub use`, `__all__`)
-- [ ] Add `imports` and `exports` fields to `Chunk` type (populated only on import/export chunks, `undefined` otherwise)
-- [ ] Add file-level `fileImports` and `fileExports` to chunk result (aggregated across all chunks) — matches local-rag's per-file storage model
-- [ ] Handle barrel files (`index.ts` re-exporting everything) — flag re-exports with source paths
-- [ ] Tests: verify structured output matches what local-rag's regex currently extracts
+- [x] Define `ChunkImport` type: `{ name: string; source: string; isDefault: boolean; isNamespace: boolean }`
+- [x] Define `ChunkExport` type: `{ name: string; type: ChunkType; isDefault: boolean; isReExport: boolean; reExportSource?: string }`
+- [x] Extract imports from AST for all 6 supported languages (ES modules, Python `import`/`from`, Rust `use`, Go `import`, Java `import`)
+- [x] Extract exports from AST: named exports, default exports, re-exports (`export { foo } from "./bar"`, `pub use`, `__all__`)
+- [x] Add `imports` and `exports` fields to `Chunk` type (populated only on import/export chunks, `undefined` otherwise)
+- [x] Add file-level `fileImports` and `fileExports` to chunk result (aggregated across all chunks) — matches local-rag's per-file storage model
+- [x] Handle barrel files (`index.ts` re-exporting everything) — flag re-exports with source paths
+- [x] Tests: verify structured output matches what local-rag's regex currently extracts
 
-### 1.2 Comment & Decorator Attachment
+### 1.2 Comment & Decorator Attachment ✓
 
 Leading comments and decorators before an entity end up as gap chunks. They should be attached to the entity they document — this improves embedding quality because the docstring travels with the function.
 
-- [ ] Attach leading doc comments (`/** */`, `///`, `#`, `""" """`) to the next entity
-- [ ] Attach decorators (`@decorator` in Python/Java/TypeScript) to their target entity
-- [ ] Preserve blank-line boundaries — a blank line between a comment and an entity means they're separate
-- [ ] Add tests for comment attachment across all supported languages
+- [x] Attach leading doc comments (`/** */`, `///`, `#`, `""" """`) to the next entity
+- [x] Attach decorators (`@decorator` in Python/Java/TypeScript) to their target entity
+- [x] Preserve blank-line boundaries — a blank line between a comment and an entity means they're separate
+- [x] Add tests for comment attachment across all supported languages
 
-### 1.3 Robustness
+### 1.3 Robustness ✓
 
-- [ ] Handle files with syntax errors gracefully (tree-sitter partial parsing)
-- [ ] Handle mixed line endings (`\r\n`, `\r`, `\n`)
-- [ ] Handle BOM markers at file start
-- [ ] Add edge-case tests: files with only comments, single-expression files, deeply nested structures
+- [x] Handle files with syntax errors gracefully (tree-sitter partial parsing)
+- [x] Handle mixed line endings (`\r\n`, `\r`, `\n`)
+- [x] Handle BOM markers at file start
+- [x] Add edge-case tests: files with only comments, single-expression files, deeply nested structures
 
 **Implementation order**: 1.1 (imports/exports) → 1.2 (comment attachment) → 1.3 (robustness)
 
@@ -68,37 +77,37 @@ Leading comments and decorators before an entity end up as gap chunks. They shou
 
 ---
 
-## Phase 2 — Language Coverage
+## Phase 2 — Language Coverage (partial)
 
 **Goal**: Eliminate local-rag's heuristic fallback for common languages. Every language local-rag encounters in the wild should get AST-quality chunks.
 
-### 2.1 Languages local-rag Currently Falls Back On
+### 2.1 Languages local-rag Currently Falls Back On (partial)
 
 These languages are already in local-rag's extension list but use blank-line heuristic splitting because bun-chunk doesn't support them. Prioritized by how often they appear in real codebases.
 
-- [ ] C (`tree-sitter-c`) — `.c`, `.h`
-- [ ] C++ (`tree-sitter-cpp`) — `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`
-- [ ] Ruby (`tree-sitter-ruby`) — `.rb`
+- [x] C (`tree-sitter-c`) — `.c`, `.h`
+- [x] C++ (`tree-sitter-cpp`) — `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`
+- [x] Ruby (`tree-sitter-ruby`) — `.rb`
 - [ ] Swift (`tree-sitter-swift`) — `.swift`
 
 Each language requires: tree-sitter WASM grammar, query pattern in `queries.ts`, node-type mappings in `chunker.ts`, extension mappings in `types.ts`, a test fixture, and test cases.
 
-### 2.2 High-Value Additions
+### 2.2 High-Value Additions (partial)
 
 Languages not yet in local-rag's fallback list but common enough to warrant first-class support.
 
-- [ ] C# (`tree-sitter-c-sharp`) — `.cs`
-- [ ] PHP (`tree-sitter-php`) — `.php`
+- [x] C# (`tree-sitter-c-sharp`) — `.cs`
+- [x] PHP (`tree-sitter-php`) — `.php`
 - [ ] Kotlin (`tree-sitter-kotlin`) — `.kt`, `.kts`
-- [ ] Scala (`tree-sitter-scala`) — `.scala`, `.sc`
+- [x] Scala (`tree-sitter-scala`) — `.scala`, `.sc`
 
-### 2.3 Prose & Markup Languages
+### 2.3 Prose & Markup Languages (partial)
 
 local-rag already has its own domain-specific chunkers for these (Markdown by headings, YAML by top-level keys, etc.). Adding tree-sitter-based support in bun-chunk lets local-rag consolidate onto a single chunking engine — but this is lower priority since the existing local-rag implementations work.
 
 - [ ] Markdown — split by headings (`#`, `##`, etc.) using `tree-sitter-markdown`
-- [ ] HTML — split by top-level elements using `tree-sitter-html`
-- [ ] CSS / SCSS — split by top-level rules and `@media` blocks using `tree-sitter-css`
+- [x] HTML — split by top-level elements using `tree-sitter-html`
+- [x] CSS / SCSS — split by top-level rules and `@media` blocks using `tree-sitter-css`
 - [ ] YAML — split by top-level keys using `tree-sitter-yaml`
 - [ ] TOML — split by `[section]` and `[[array-of-tables]]` using `tree-sitter-toml`
 
@@ -108,50 +117,50 @@ local-rag already has its own domain-specific chunkers for these (Markdown by he
 
 ---
 
-## Phase 3 — Smarter Chunking
+## Phase 3 — Smarter Chunking ✓
 
 **Goal**: Produce higher-quality chunks that lead to better embeddings and more relevant retrieval in local-rag's hybrid search pipeline.
 
-### 3.1 Context Injection
+### 3.1 Context Injection ✓
 
 When local-rag splits a class by its methods, each method chunk loses its parent context. A method `parse()` inside `class JsonParser` produces a chunk that embeds poorly because the embedding model doesn't know what it belongs to.
 
-- [ ] Add optional `context` field to `Chunk` type — parent scope chain (e.g., `["JsonParser", "parse"]`)
-- [ ] When splitting a class/struct/impl by children, prepend a context header to each child chunk (e.g., `// class JsonParser`)
-- [ ] Make context injection opt-in via `ChunkOptions.includeContext` (default `false` for backward compatibility)
-- [ ] Add `parentName` field to `Chunk` for structured access to the enclosing entity name
+- [x] Add optional `context` field to `Chunk` type — parent scope chain (e.g., `["JsonParser", "parse"]`)
+- [x] When splitting a class/struct/impl by children, prepend a context header to each child chunk (e.g., `// class JsonParser`)
+- [x] Make context injection opt-in via `ChunkOptions.includeContext` (default `false` for backward compatibility)
+- [x] Add `parentName` field to `Chunk` for structured access to the enclosing entity name
 
-### 3.2 Import Collapsing
+### 3.2 Import Collapsing ✓
 
 Files often have 10-30 individual import lines that create noisy, low-value chunks. local-rag's `mergeSmallChunks` helps but doesn't understand import grouping conventions.
 
-- [ ] Detect consecutive import/use statements and group them into a single chunk
-- [ ] Respect blank-line separators between import groups (e.g., stdlib vs third-party vs local)
-- [ ] Update `mergeSmallChunks` to handle import grouping by default
+- [x] Detect consecutive import/use statements and group them into a single chunk
+- [x] Respect blank-line separators between import groups (e.g., stdlib vs third-party vs local)
+- [x] Update `mergeSmallChunks` to handle import grouping by default
 
-### 3.3 Chunk Metadata Enrichment
+### 3.3 Chunk Metadata Enrichment ✓
 
 local-rag stores `entity_name` and `chunk_type` in its chunks table. Additional metadata enables better deduplication and re-indexing.
 
-- [ ] Add `language` field to `Chunk`
-- [ ] Add `filePath` field to `Chunk`
-- [ ] Add `hash` field — content hash for deduplication across re-indexing runs (local-rag currently hashes whole files, not chunks)
-- [ ] Make new fields opt-in via `ChunkOptions.includeMetadata` to keep output lean by default
+- [x] Add `language` field to `Chunk`
+- [x] Add `filePath` field to `Chunk`
+- [x] Add `hash` field — content hash for deduplication across re-indexing runs (local-rag currently hashes whole files, not chunks)
+- [x] Make new fields opt-in via `ChunkOptions.includeMetadata` to keep output lean by default
 
-### 3.4 Overlap / Sliding Window Mode
+### 3.4 Overlap / Sliding Window Mode ✓
 
 local-rag already applies character-based overlap (`chunkOverlap: 50`) in its size-based fallback. bun-chunk should support line-based overlap natively so this doesn't need to happen downstream.
 
-- [ ] Add `ChunkOptions.overlap` — number of lines to overlap between adjacent chunks (default `0`)
-- [ ] Apply overlap only to line-based splits, not to entity-boundary splits
-- [ ] Ensure overlapping chunks still have correct `startLine` / `endLine`
+- [x] Add `ChunkOptions.overlap` — number of lines to overlap between adjacent chunks (default `0`)
+- [x] Apply overlap only to line-based splits, not to entity-boundary splits
+- [x] Ensure overlapping chunks still have correct `startLine` / `endLine`
 
-### 3.5 Configurable Strategies
+### 3.5 Configurable Strategies ✓
 
-- [ ] `"semantic"` (default) — current AST-aware behavior
-- [ ] `"fixed"` — pure line-based splitting with no AST parsing (fastest)
-- [ ] `"hybrid"` — AST-aware for supported languages, fixed for everything else (current fallback behavior, made explicit)
-- [ ] Add `ChunkOptions.strategy` to select the mode
+- [x] `"semantic"` (default) — current AST-aware behavior
+- [x] `"fixed"` — pure line-based splitting with no AST parsing (fastest)
+- [x] `"hybrid"` — AST-aware for supported languages, fixed for everything else (current fallback behavior, made explicit)
+- [x] Add `ChunkOptions.strategy` to select the mode
 
 **Implementation order**: 3.1 (context injection) → 3.2 (import collapsing) → 3.3 (metadata) → 3.4 (overlap) → 3.5 (strategies)
 
@@ -159,31 +168,31 @@ local-rag already applies character-based overlap (`chunkOverlap: 50`) in its si
 
 ---
 
-## Phase 4 — Tooling & Integration
+## Phase 4 — Tooling & Integration (partial)
 
 **Goal**: Make bun-chunk usable as a standalone tool and provide APIs that align with local-rag's indexing pipeline.
 
-### 4.1 Streaming API
+### 4.1 Streaming API ✓
 
 local-rag processes files in batches during indexing. A streaming API avoids buffering all chunks in memory for large files.
 
-- [ ] Add `chunkStream(filepath, code, options)` — returns `AsyncGenerator<Chunk>`
-- [ ] Emit chunks as they are extracted instead of collecting into an array
-- [ ] Add `chunkFile(filepath, options)` — reads file from disk and streams chunks (uses `Bun.file()`)
-- [ ] Add `chunkDirectory(dirpath, options)` — recursively walks and streams chunks for all files
+- [x] Add `chunkStream(filepath, code, options)` — returns `AsyncGenerator<Chunk>`
+- [ ] Emit chunks as they are extracted instead of collecting into an array — *Note: current implementation eagerly computes all chunks then yields them; `chunkDirectoryStream` is the only true streaming function (processes files one at a time)*
+- [x] Add `chunkFile(filepath, options)` — reads file from disk and streams chunks (uses `Bun.file()`)
+- [x] Add `chunkDirectory(dirpath, options)` — recursively walks and streams chunks for all files
 
-### 4.2 CLI Tool
+### 4.2 CLI Tool ✓
 
 A standalone CLI for chunking files without writing code — useful for debugging, testing, and pipelines outside local-rag.
 
-- [ ] `bunx @winci/bun-chunk <file|dir>` — chunk files and output JSON to stdout
-- [ ] `--format json|jsonl|text` — output format (JSONL for streaming into pipelines)
-- [ ] `--max-lines <n>` — configure max chunk size
-- [ ] `--language <lang>` — override language detection
-- [ ] `--glob <pattern>` — filter files when chunking a directory
-- [ ] `--include-metadata` — include language, filePath, hash in output
-- [ ] Add `bin` field to `package.json`
-- [ ] Directory mode: recursively chunk all supported files, skip `node_modules`, `.git`, etc.
+- [x] `bunx @winci/bun-chunk <file|dir>` — chunk files and output JSON to stdout
+- [x] `--format json|jsonl|text` — output format (JSONL for streaming into pipelines)
+- [x] `--max-lines <n>` — configure max chunk size
+- [x] `--language <lang>` — override language detection
+- [x] `--glob <pattern>` — filter files when chunking a directory
+- [x] `--include-metadata` — include language, filePath, hash in output
+- [x] Add `bin` field to `package.json`
+- [x] Directory mode: recursively chunk all supported files, skip `node_modules`, `.git`, etc.
 
 ### 4.3 Watch Mode
 
@@ -200,32 +209,32 @@ Complements local-rag's file watching — bun-chunk can emit changed chunks as a
 
 ---
 
-## Phase 5 — Cross-File Context
+## Phase 5 — Cross-File Context (partial)
 
 **Goal**: Give bun-chunk the ability to understand cross-file relationships at the *chunk level*, while respecting that local-rag owns the dependency graph and storage. bun-chunk provides the raw structured data; local-rag builds and queries the graph.
 
-### 5.1 Richer Import/Export Data
+### 5.1 Richer Import/Export Data ✓
 
 Building on Phase 1.1's structured imports/exports, add resolution hints that help local-rag build a more accurate graph without needing its own path resolution logic.
 
-- [ ] Resolve relative import specifiers to file paths (given a project root) — `"./utils"` → `"src/utils.ts"` or `"src/utils/index.ts"`
-- [ ] Support TypeScript path aliases (`tsconfig.json` `paths` and `baseUrl`)
-- [ ] Handle Go package paths, Rust `mod` declarations, Java package conventions
-- [ ] Return unresolved specifiers (bare imports like `"react"`) as-is — local-rag can decide whether to resolve them via `node_modules`
-- [ ] Add `resolvedPath` field to `ChunkImport` (populated when resolution succeeds, `undefined` otherwise)
+- [x] Resolve relative import specifiers to file paths (given a project root) — `"./utils"` → `"src/utils.ts"` or `"src/utils/index.ts"`
+- [x] Support TypeScript path aliases (`tsconfig.json` `paths` and `baseUrl`)
+- [x] Handle Go package paths, Rust `mod` declarations, Java package conventions
+- [x] Return unresolved specifiers (bare imports like `"react"`) as-is — local-rag can decide whether to resolve them via `node_modules`
+- [x] Add `resolvedPath` field to `ChunkImport` (populated when resolution succeeds, `undefined` otherwise)
 
-### 5.2 Cross-File Chunk Enrichment
+### 5.2 Cross-File Chunk Enrichment (partial)
 
 When chunking multiple files together, annotate each chunk with cross-file context so embeddings capture the full picture.
 
-- [ ] `chunkProject(dir, options)` — chunk all supported files, return chunks + a flat import/export map
-- [ ] For each export chunk, include `usedBy: string[]` — file paths that import this symbol (populated from the import map)
-- [ ] For each import chunk, include `definedIn: string` — resolved file path where the symbol lives
+- [x] `chunkProject(dir, options)` — chunk all supported files, return chunks + a flat import/export map
+- [x] For each export chunk, include `usedBy: string[]` — file paths that import this symbol (populated from the import map)
+- [x] For each import chunk, include `definedIn: string` — resolved file path where the symbol lives
 - [ ] Optional context header injection — prepend imported type signatures to a function chunk so the embedding captures parameter types defined elsewhere
 - [ ] Configurable depth via `ChunkOptions.crossFileDepth` (default `1`) — how many levels of transitive context to include
 - [ ] Parallel file processing using Bun's concurrency primitives
-- [ ] Respect `.gitignore` and configurable ignore patterns
-- [ ] Progress callback for large projects (`options.onProgress`)
+- [x] Respect `.gitignore` and configurable ignore patterns
+- [x] Progress callback for large projects (`options.onProgress`)
 
 ### 5.3 Coordination Protocol with local-rag
 
