@@ -24,6 +24,134 @@
     <footer>
         <p>Footer content</p>
     </footer>
+
+    <section id="dashboard" class="dashboard">
+        <div class="dashboard-header">
+            <h2>Dashboard</h2>
+            <div class="dashboard-actions">
+                <button class="btn btn-primary" id="refresh-btn">Refresh</button>
+                <button class="btn btn-secondary" id="export-btn">Export</button>
+                <select id="time-range">
+                    <option value="1h">Last Hour</option>
+                    <option value="24h">Last 24 Hours</option>
+                    <option value="7d">Last 7 Days</option>
+                    <option value="30d">Last 30 Days</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>Total Users</h3>
+                <p class="stat-value" id="total-users">0</p>
+                <span class="stat-change positive">+12%</span>
+            </div>
+            <div class="stat-card">
+                <h3>Active Sessions</h3>
+                <p class="stat-value" id="active-sessions">0</p>
+                <span class="stat-change negative">-3%</span>
+            </div>
+            <div class="stat-card">
+                <h3>Revenue</h3>
+                <p class="stat-value" id="revenue">$0</p>
+                <span class="stat-change positive">+8%</span>
+            </div>
+            <div class="stat-card">
+                <h3>Error Rate</h3>
+                <p class="stat-value" id="error-rate">0%</p>
+                <span class="stat-change positive">-2%</span>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="main-chart" width="800" height="400"></canvas>
+        </div>
+
+        <table class="data-table" id="events-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>Event</th>
+                    <th>User</th>
+                    <th>Status</th>
+                    <th>Duration</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>2024-01-15 10:30:00</td>
+                    <td>page_view</td>
+                    <td>user_123</td>
+                    <td><span class="badge success">OK</span></td>
+                    <td>120ms</td>
+                    <td><button class="btn-sm">View</button></td>
+                </tr>
+                <tr>
+                    <td>2024-01-15 10:29:45</td>
+                    <td>api_call</td>
+                    <td>user_456</td>
+                    <td><span class="badge error">Error</span></td>
+                    <td>3500ms</td>
+                    <td><button class="btn-sm">View</button></td>
+                </tr>
+                <tr>
+                    <td>2024-01-15 10:29:30</td>
+                    <td>login</td>
+                    <td>user_789</td>
+                    <td><span class="badge success">OK</span></td>
+                    <td>250ms</td>
+                    <td><button class="btn-sm">View</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section id="settings" class="settings-panel" hidden>
+        <h2>Settings</h2>
+        <form id="settings-form">
+            <fieldset>
+                <legend>General</legend>
+                <div class="form-group">
+                    <label for="app-name">Application Name</label>
+                    <input type="text" id="app-name" name="appName" value="My App" />
+                </div>
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" rows="3"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>
+                        <input type="checkbox" name="darkMode" />
+                        Enable Dark Mode
+                    </label>
+                </div>
+            </fieldset>
+            <fieldset>
+                <legend>Notifications</legend>
+                <div class="form-group">
+                    <label for="email-notifications">
+                        <input type="checkbox" id="email-notifications" name="emailNotifications" checked />
+                        Email Notifications
+                    </label>
+                </div>
+                <div class="form-group">
+                    <label for="notification-frequency">Frequency</label>
+                    <select id="notification-frequency" name="notificationFrequency">
+                        <option value="realtime">Real-time</option>
+                        <option value="hourly">Hourly</option>
+                        <option value="daily" selected>Daily</option>
+                        <option value="weekly">Weekly</option>
+                    </select>
+                </div>
+            </fieldset>
+            <div class="form-actions">
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="reset" class="btn btn-secondary">Reset</button>
+            </div>
+        </form>
+    </section>
+
     <script src="app.js"></script>
 </body>
 </html>

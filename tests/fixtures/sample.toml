@@ -17,3 +17,66 @@ path = "src/main.rs"
 [profile.release]
 opt-level = 3
 lto = true
+
+[profile.dev]
+opt-level = 0
+debug = true
+overflow-checks = true
+
+[features]
+default = ["std", "logging"]
+std = []
+logging = ["dep:tracing", "dep:tracing-subscriber"]
+metrics = ["dep:prometheus"]
+full = ["std", "logging", "metrics"]
+
+[workspace]
+members = ["crates/*"]
+resolver = "2"
+
+[workspace.dependencies]
+anyhow = "1.0"
+clap = { version = "4.0", features = ["derive"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "json"] }
+prometheus = "0.13"
+
+[[example]]
+name = "basic"
+path = "examples/basic.rs"
+required-features = ["std"]
+
+[[example]]
+name = "advanced"
+path = "examples/advanced.rs"
+required-features = ["full"]
+
+[[bench]]
+name = "throughput"
+harness = false
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[package.metadata.release]
+pre-release-commit-message = "chore: release {{version}}"
+tag-message = "{{tag_name}}"
+publish = true
+push = true
+sign-commit = true
+sign-tag = true
+
+[lints.rust]
+unsafe_code = "forbid"
+unused_imports = "warn"
+dead_code = "warn"
+
+[lints.clippy]
+all = "warn"
+pedantic = "warn"
+nursery = "warn"
+unwrap_used = "deny"
+expect_used = "deny"

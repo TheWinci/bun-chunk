@@ -22,3 +22,82 @@ features:
   auth: true
   logging: true
   cache: false
+
+redis:
+  host: localhost
+  port: 6379
+  db: 0
+  password: null
+  pool:
+    min_connections: 2
+    max_connections: 10
+    idle_timeout: 300
+
+logging:
+  level: info
+  format: json
+  outputs:
+    - type: stdout
+      level: info
+    - type: file
+      path: /var/log/myapp/app.log
+      level: debug
+      rotation:
+        max_size: 100MB
+        max_files: 10
+        compress: true
+
+jobs:
+  cleanup:
+    schedule: "0 3 * * *"
+    timeout: 3600
+    retry:
+      max_attempts: 3
+      backoff: exponential
+      base_delay: 5
+  sync:
+    schedule: "*/15 * * * *"
+    timeout: 900
+    enabled: true
+    params:
+      batch_size: 100
+      concurrency: 4
+
+deploy:
+  environments:
+    staging:
+      url: https://staging.example.com
+      replicas: 2
+      resources:
+        cpu: 500m
+        memory: 512Mi
+      env:
+        LOG_LEVEL: debug
+        ENABLE_PROFILING: "true"
+    production:
+      url: https://example.com
+      replicas: 6
+      resources:
+        cpu: "2"
+        memory: 2Gi
+      autoscaling:
+        min_replicas: 3
+        max_replicas: 12
+        target_cpu: 70
+      env:
+        LOG_LEVEL: warn
+        ENABLE_PROFILING: "false"
+
+notifications:
+  slack:
+    webhook_url: https://hooks.slack.com/services/xxx
+    channels:
+      alerts: "#alerts"
+      deploys: "#deploys"
+  email:
+    smtp_host: smtp.example.com
+    smtp_port: 587
+    from: noreply@example.com
+    recipients:
+      - ops@example.com
+      - dev@example.com
