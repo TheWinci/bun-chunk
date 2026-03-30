@@ -225,3 +225,205 @@ describe("CSS", () => {
   });
 });
 
+describe("Kotlin", () => {
+  test("extracts classes, functions, interfaces", async () => {
+    const code = await readFixture("sample.kt");
+    const { chunks } = await chunk("sample.kt", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names).toContain("Config");
+    expect(names).toContain("DataProcessor");
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.kt");
+    const { chunks } = await chunk("sample.kt", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.kt");
+    const { chunks } = await chunk("sample.kt", code);
+    verifyNoOverlap(chunks);
+  });
+
+  test("extracts imports", async () => {
+    const code = await readFixture("sample.kt");
+    const { fileImports } = await chunk("sample.kt", code);
+    expect(fileImports.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Lua", () => {
+  test("extracts functions", async () => {
+    const code = await readFixture("sample.lua");
+    const { chunks } = await chunk("sample.lua", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.lua");
+    const { chunks } = await chunk("sample.lua", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.lua");
+    const { chunks } = await chunk("sample.lua", code);
+    verifyNoOverlap(chunks);
+  });
+});
+
+describe("Zig", () => {
+  test("extracts structs, functions, tests", async () => {
+    const code = await readFixture("sample.zig");
+    const { chunks } = await chunk("sample.zig", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.zig");
+    const { chunks } = await chunk("sample.zig", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.zig");
+    const { chunks } = await chunk("sample.zig", code);
+    verifyNoOverlap(chunks);
+  });
+});
+
+describe("Elixir", () => {
+  test("extracts modules and functions", async () => {
+    const code = await readFixture("sample.ex");
+    const { chunks } = await chunk("sample.ex", code);
+
+    expect(chunks.length).toBeGreaterThan(0);
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.ex");
+    const { chunks } = await chunk("sample.ex", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.ex");
+    const { chunks } = await chunk("sample.ex", code);
+    verifyNoOverlap(chunks);
+  });
+});
+
+describe("Bash", () => {
+  test("extracts functions and variables", async () => {
+    const code = await readFixture("sample.sh");
+    const { chunks } = await chunk("sample.sh", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.sh");
+    const { chunks } = await chunk("sample.sh", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.sh");
+    const { chunks } = await chunk("sample.sh", code);
+    verifyNoOverlap(chunks);
+  });
+});
+
+describe("TOML", () => {
+  test("extracts tables and pairs", async () => {
+    const code = await readFixture("sample.toml");
+    const { chunks } = await chunk("sample.toml", code);
+
+    expect(chunks.length).toBeGreaterThan(0);
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.toml");
+    const { chunks } = await chunk("sample.toml", code);
+    verifyCoverage(code, chunks);
+  });
+});
+
+describe("YAML", () => {
+  test("extracts top-level keys", async () => {
+    const code = await readFixture("sample.yaml");
+    const { chunks } = await chunk("sample.yaml", code);
+
+    expect(chunks.length).toBeGreaterThan(0);
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.yaml");
+    const { chunks } = await chunk("sample.yaml", code);
+    verifyCoverage(code, chunks);
+  });
+});
+
+describe("Haskell", () => {
+  test("extracts functions and data types", async () => {
+    const code = await readFixture("sample.hs");
+    const { chunks } = await chunk("sample.hs", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.hs");
+    const { chunks } = await chunk("sample.hs", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.hs");
+    const { chunks } = await chunk("sample.hs", code);
+    verifyNoOverlap(chunks);
+  });
+
+  test("extracts imports", async () => {
+    const code = await readFixture("sample.hs");
+    const { fileImports } = await chunk("sample.hs", code);
+    expect(fileImports.length).toBeGreaterThan(0);
+  });
+});
+
+describe("OCaml", () => {
+  test("extracts functions, types, modules", async () => {
+    const code = await readFixture("sample.ml");
+    const { chunks } = await chunk("sample.ml", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names.length).toBeGreaterThan(0);
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.ml");
+    const { chunks } = await chunk("sample.ml", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.ml");
+    const { chunks } = await chunk("sample.ml", code);
+    verifyNoOverlap(chunks);
+  });
+});
+

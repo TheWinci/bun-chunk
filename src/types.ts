@@ -2,7 +2,9 @@
 export type Language =
   | "typescript" | "javascript" | "python" | "rust" | "go" | "java"
   | "c" | "cpp" | "csharp" | "ruby" | "php" | "scala"
-  | "html" | "css";
+  | "html" | "css"
+  | "kotlin" | "lua" | "zig" | "elixir"
+  | "bash" | "toml" | "yaml" | "haskell" | "ocaml";
 
 /** A structured import extracted from a chunk */
 export interface ChunkImport {
@@ -152,4 +154,21 @@ export const EXTENSION_MAP: Record<string, Language> = {
   ".css": "css",
   ".scss": "css",
   ".less": "css",
+  ".kt": "kotlin",
+  ".kts": "kotlin",
+  ".lua": "lua",
+  ".zig": "zig",
+  ".zon": "zig",
+  ".ex": "elixir",
+  ".exs": "elixir",
+  ".sh": "bash",
+  ".bash": "bash",
+  ".zsh": "bash",
+  ".toml": "toml",
+  ".yaml": "yaml",
+  ".yml": "yaml",
+  ".hs": "haskell",
+  ".lhs": "haskell",
+  ".ml": "ocaml",
+  ".mli": "ocaml",
 };

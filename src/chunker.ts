@@ -131,6 +131,39 @@ const NODE_TYPE_MAP: Record<string, ChunkType> = {
   table: "section",
   table_array_element: "section",
   pair: "property",
+  // Kotlin
+  object_declaration: "class",
+  import: "import",
+  package_header: "package",
+  // Lua
+  function_declaration_lua: "function",
+  variable_declaration: "variable",
+  assignment_statement: "variable",
+  // Zig
+  function_declaration_zig: "function",
+  variable_declaration_zig: "variable",
+  test_declaration: "function",
+  // Elixir
+  call: "function",
+  // Bash
+  function_definition_bash: "function",
+  variable_assignment: "variable",
+  // Haskell
+  function: "function",
+  signature: "type",
+  data_type: "type",
+  newtype: "type",
+  type_synomym: "type",
+  class: "class",
+  instance: "impl",
+  // OCaml
+  value_definition: "function",
+  type_definition: "type",
+  module_definition: "module",
+  module_type_definition: "type",
+  open_module: "import",
+  external: "function",
+  exception_definition: "type",
 };
 
 function nodeTypeToChunkType(nodeType: string): ChunkType {
@@ -159,14 +192,29 @@ function isCommentLine(line: string, language: Language): boolean {
     case "csharp":
     case "php":
     case "scala":
+    case "kotlin":
+    case "zig":
       return trimmed.startsWith("//") || trimmed.startsWith("/*") || trimmed.startsWith(" *") || trimmed === "*" || trimmed.startsWith("*/");
     case "python":
     case "ruby":
       return trimmed.startsWith("#") || trimmed.startsWith('"""') || trimmed.startsWith("'''");
+    case "elixir":
+      return trimmed.startsWith("#");
+    case "lua":
+      return trimmed.startsWith("--");
+    case "bash":
+      return trimmed.startsWith("#") && !trimmed.startsWith("#!");
+    case "haskell":
+      return trimmed.startsWith("--") || trimmed.startsWith("{-") || trimmed.startsWith("-}");
+    case "ocaml":
+      return trimmed.startsWith("(*") || trimmed.startsWith("*)") || trimmed.startsWith(" *");
     case "html":
       return trimmed.startsWith("<!--") || trimmed.startsWith("-->");
     case "css":
       return trimmed.startsWith("/*") || trimmed.startsWith(" *") || trimmed === "*" || trimmed.startsWith("*/");
+    case "toml":
+    case "yaml":
+      return trimmed.startsWith("#");
     default:
       return false;
   }
@@ -181,13 +229,17 @@ function isDecoratorLine(line: string, language: Language): boolean {
     case "typescript":
     case "javascript":
     case "java":
+    case "kotlin":
       return trimmed.startsWith("@") && !trimmed.startsWith("@interface");
     case "php":
       return trimmed.startsWith("#["); // PHP 8 attributes
     case "rust":
+    case "zig":
       return trimmed.startsWith("#[") || trimmed.startsWith("#![");
     case "csharp":
       return trimmed.startsWith("[") && trimmed.endsWith("]");
+    case "elixir":
+      return trimmed.startsWith("@") && !trimmed.startsWith("@doc") && !trimmed.startsWith("@moduledoc");
     default:
       return false;
   }

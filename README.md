@@ -6,7 +6,15 @@ Uses [tree-sitter](https://tree-sitter.github.io/tree-sitter/) to parse source c
 
 ## Supported languages
 
-TypeScript, JavaScript, Python, Rust, Go, Java, C, C++, C#, Ruby, PHP, Scala, HTML, CSS
+TypeScript, JavaScript, Python, Rust, Go, Java, C, C++, C#, Ruby, PHP, Scala, HTML, CSS, Kotlin, Lua, Zig, Elixir, Bash, TOML, YAML, Haskell, OCaml
+
+### Future candidates
+
+These languages need a compatible tree-sitter WASM binary before they can be added:
+
+- **Dart** — WASM binary from `tree-sitter-dart` is incompatible with `web-tree-sitter` v0.26+
+- **Swift** — no npm package ships a `.wasm`; requires self-compiling or the `tree-sitter-wasms` mega-bundle
+- **SQL** — no npm package ships a `.wasm`; best grammar is `@derekstride/tree-sitter-sql` but needs manual WASM build
 
 ## Install
 
@@ -41,7 +49,7 @@ const chunks = await chunk("src/app.ts", code, {
 });
 ```
 
-Language is auto-detected from the file extension. Supported extensions: `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.pyi`, `.rs`, `.go`, `.java`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.cs`, `.rb`, `.php`, `.scala`, `.sc`, `.html`, `.htm`, `.css`, `.scss`, `.less`.
+Language is auto-detected from the file extension. Supported extensions: `.ts`, `.tsx`, `.mts`, `.cts`, `.js`, `.jsx`, `.mjs`, `.cjs`, `.py`, `.pyi`, `.rs`, `.go`, `.java`, `.c`, `.h`, `.cpp`, `.cc`, `.cxx`, `.hpp`, `.hh`, `.hxx`, `.cs`, `.rb`, `.php`, `.scala`, `.sc`, `.html`, `.htm`, `.css`, `.scss`, `.less`, `.kt`, `.kts`, `.lua`, `.zig`, `.zon`, `.ex`, `.exs`, `.sh`, `.bash`, `.zsh`, `.toml`, `.yaml`, `.yml`, `.hs`, `.lhs`, `.ml`, `.mli`.
 
 **Strategies:**
 

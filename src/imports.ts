@@ -18,6 +18,8 @@ export function extractImports(text: string, language: Language): ChunkImport[] 
       return extractGoImports(text);
     case "java":
       return extractJavaImports(text);
+    case "kotlin":
+      return extractKotlinImports(text);
     case "c":
     case "cpp":
       return extractCImports(text);
@@ -31,6 +33,18 @@ export function extractImports(text: string, language: Language): ChunkImport[] 
       return extractScalaImports(text);
     case "css":
       return extractCSSImports(text);
+    case "lua":
+      return extractLuaImports(text);
+    case "zig":
+      return extractZigImports(text);
+    case "elixir":
+      return extractElixirImports(text);
+    case "bash":
+      return extractBashImports(text);
+    case "haskell":
+      return extractHaskellImports(text);
+    case "ocaml":
+      return extractOCamlImports(text);
     default:
       return [];
   }
@@ -57,6 +71,8 @@ export function extractExports(
       return extractGoExports(text, entityType, entityName);
     case "java":
       return extractJavaExports(text, entityType, entityName);
+    case "kotlin":
+      return extractKotlinExports(text, entityType, entityName);
     case "c":
     case "cpp":
       return extractCExports(text, entityType, entityName);
@@ -68,6 +84,16 @@ export function extractExports(
       return extractPHPExports(text, entityType, entityName);
     case "scala":
       return extractScalaExports(text, entityType, entityName);
+    case "elixir":
+      return extractElixirExports(text, entityType, entityName);
+    case "zig":
+      return extractZigExports(text, entityType, entityName);
+    case "lua":
+      return extractLuaExports(text, entityType, entityName);
+    case "haskell":
+      return extractHaskellExports(text, entityType, entityName);
+    case "ocaml":
+      return extractOCamlExports(text, entityType, entityName);
     default:
       return [];
   }
@@ -559,4 +585,219 @@ function extractCSSImports(text: string): ChunkImport[] {
   }
 
   return imports;
+}
+
+// --- Kotlin ---
+
+function extractKotlinImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // import com.example.Foo, import com.example.*
+  const importRegex = /import\s+([\w.]+(?:\.\*)?)/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const fullPath = match[1];
+    const isWildcard = fullPath.endsWith(".*");
+    const name = isWildcard ? "*" : (fullPath.split(".").pop() ?? fullPath);
+    const source = isWildcard ? fullPath.slice(0, -2) : fullPath.split(".").slice(0, -1).join(".");
+    imports.push({
+      name,
+      source,
+      isDefault: false,
+      isNamespace: isWildcard,
+    });
+  }
+
+  return imports;
+}
+
+function extractKotlinExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Kotlin: public by default unless marked private/protected/internal
+  if (entityName && !/\b(private|protected|internal)\b/.test(text) && entityType !== "import" && entityType !== "package") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Lua ---
+
+function extractLuaImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // require("module") or require "module"
+  const requireRegex = /require\s*[\(]?\s*["']([^"']+)["']\s*[\)]?/g;
+  let match: RegExpExecArray | null;
+  while ((match = requireRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split(/[./]/).pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractLuaExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Lua doesn't have explicit exports — all top-level names are accessible
+  if (entityName && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Zig ---
+
+function extractZigImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // const std = @import("std");
+  const importRegex = /(?:const|var)\s+(\w+)\s*=\s*@import\s*\(\s*"([^"]+)"\s*\)/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    imports.push({ name: match[1], source: match[2], isDefault: false, isNamespace: true });
+  }
+
+  return imports;
+}
+
+function extractZigExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Zig: pub keyword marks public symbols
+  if (entityName && /\bpub\b/.test(text) && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Elixir ---
+
+function extractElixirImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // import Module, alias Module, use Module, require Module
+  const importRegex = /(?:import|alias|use|require)\s+([\w.]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split(".").pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractElixirExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Elixir: def is public, defp is private
+  if (entityName && entityType !== "import") {
+    const isPrivate = /\bdefp\b/.test(text) || /\bdefmacrop\b/.test(text) || /\bdefguardp\b/.test(text);
+    if (!isPrivate) {
+      return [{
+        name: entityName,
+        type: entityType,
+        isDefault: false,
+        isReExport: false,
+      }];
+    }
+  }
+  return [];
+}
+
+// --- Bash ---
+
+function extractBashImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // source file.sh or . file.sh
+  const sourceRegex = /(?:source|\.\s)\s+["']?([^\s"']+)["']?/g;
+  let match: RegExpExecArray | null;
+  while ((match = sourceRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop()?.replace(/\.sh$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+// --- Haskell ---
+
+function extractHaskellImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // import Module, import qualified Module as Alias, import Module (name1, name2)
+  const importRegex = /import\s+(?:qualified\s+)?([\w.]+)(?:\s+as\s+(\w+))?(?:\s+\(([^)]*)\))?/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const source = match[1];
+    const alias = match[2];
+    const namedStr = match[3];
+
+    if (namedStr) {
+      const names = namedStr.split(",").map(s => s.trim().replace(/[()]/g, "")).filter(Boolean);
+      for (const name of names) {
+        imports.push({ name, source, isDefault: false, isNamespace: false });
+      }
+    } else {
+      const name = alias ?? source.split(".").pop() ?? source;
+      imports.push({ name, source, isDefault: false, isNamespace: !!alias });
+    }
+  }
+
+  return imports;
+}
+
+function extractHaskellExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Haskell: all top-level bindings are exported unless there's an explicit module export list
+  if (entityName && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- OCaml ---
+
+function extractOCamlImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // open Module
+  const openRegex = /open\s+([\w.]+)/g;
+  let match: RegExpExecArray | null;
+  while ((match = openRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split(".").pop() ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: true });
+  }
+
+  return imports;
+}
+
+function extractOCamlExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // OCaml: all top-level definitions are exported unless the .mli restricts them
+  if (entityName && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
 }

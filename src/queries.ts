@@ -282,6 +282,107 @@ const CSS = `
   (keyframes_name) @name) @item
 `;
 
+const KOTLIN = `
+(import) @item
+(package_header) @item
+
+(class_declaration (identifier) @name) @item
+(object_declaration (identifier) @name) @item
+
+(function_declaration (identifier) @name) @item
+
+(source_file (property_declaration) @item)
+`;
+
+const LUA = `
+(function_declaration name: (_) @name) @item
+
+(variable_declaration
+  (assignment_statement
+    (variable_list (identifier) @name)
+    (expression_list (function_definition)))) @item
+
+(variable_declaration
+  (assignment_statement
+    (variable_list (identifier) @name))) @item
+`;
+
+const ZIG = `
+(source_file (function_declaration (identifier) @name) @item)
+
+(source_file (variable_declaration (identifier) @name) @item)
+
+(source_file (test_declaration) @item)
+`;
+
+const ELIXIR = `
+(call
+  target: (identifier) @context
+  (arguments (alias) @name)
+  (#match? @context "^(defmodule|defprotocol|defimpl)$")) @item
+
+(call
+  target: (identifier) @context
+  (arguments
+    (call target: (identifier) @name))
+  (#match? @context "^(def|defp|defmacro|defmacrop|defguard|defguardp|defdelegate)$")) @item
+
+(call
+  target: (identifier) @context
+  (#match? @context "^(import|alias|use|require)$")) @item
+`;
+
+const BASH = `
+(function_definition name: (word) @name) @item
+(variable_assignment name: (variable_name) @name) @item
+`;
+
+const TOML = `
+(table (bare_key) @name) @item
+(table (dotted_key) @name) @item
+(table_array_element (bare_key) @name) @item
+(table_array_element (dotted_key) @name) @item
+(pair (bare_key) @name) @item
+(pair (dotted_key) @name) @item
+`;
+
+const YAML = `
+(block_mapping_pair
+  key: (_) @name) @item
+`;
+
+const HASKELL = `
+(function name: (variable) @name) @item
+(signature name: (variable) @name) @item
+
+(data_type name: (_) @name) @item
+(newtype name: (_) @name) @item
+(type_synomym name: (_) @name) @item
+
+(class) @item
+(instance) @item
+
+(import) @item
+`;
+
+const OCAML = `
+(value_definition
+  (let_binding pattern: (value_name) @name)) @item
+
+(type_definition
+  (type_binding name: (type_constructor) @name)) @item
+
+(module_definition
+  (module_binding (module_name) @name)) @item
+
+(open_module) @item
+
+(external (value_name) @name) @item
+
+(exception_definition
+  (constructor_declaration (constructor_name) @name)) @item
+`;
+
 export const QUERIES: Record<Language, string> = {
   typescript: TYPESCRIPT,
   javascript: JAVASCRIPT,
@@ -297,4 +398,13 @@ export const QUERIES: Record<Language, string> = {
   scala: SCALA,
   html: HTML,
   css: CSS,
+  kotlin: KOTLIN,
+  lua: LUA,
+  zig: ZIG,
+  elixir: ELIXIR,
+  bash: BASH,
+  toml: TOML,
+  yaml: YAML,
+  haskell: HASKELL,
+  ocaml: OCAML,
 };

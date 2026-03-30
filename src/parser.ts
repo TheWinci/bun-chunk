@@ -24,6 +24,15 @@ function getGrammarPath(language: Language): string {
     scala: "tree-sitter-scala/tree-sitter-scala.wasm",
     html: "tree-sitter-html/tree-sitter-html.wasm",
     css: "tree-sitter-css/tree-sitter-css.wasm",
+    kotlin: "@tree-sitter-grammars/tree-sitter-kotlin/tree-sitter-kotlin.wasm",
+    lua: "@tree-sitter-grammars/tree-sitter-lua/tree-sitter-lua.wasm",
+    zig: "@tree-sitter-grammars/tree-sitter-zig/tree-sitter-zig.wasm",
+    elixir: "tree-sitter-elixir/tree-sitter-elixir.wasm",
+    bash: "tree-sitter-bash/tree-sitter-bash.wasm",
+    toml: "@tree-sitter-grammars/tree-sitter-toml/tree-sitter-toml.wasm",
+    yaml: "@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm",
+    haskell: "tree-sitter-haskell/tree-sitter-haskell.wasm",
+    ocaml: "tree-sitter-ocaml/tree-sitter-ocaml.wasm",
   };
 
   if (packagePaths[language]) {
