@@ -4,7 +4,8 @@ export type Language =
   | "c" | "cpp" | "csharp" | "ruby" | "php" | "scala"
   | "html" | "css"
   | "kotlin" | "lua" | "zig" | "elixir"
-  | "bash" | "toml" | "yaml" | "haskell" | "ocaml";
+  | "bash" | "toml" | "yaml" | "haskell" | "ocaml"
+  | "dart";
 
 /** A structured import extracted from a chunk */
 export interface ChunkImport {
@@ -171,4 +172,5 @@ export const EXTENSION_MAP: Record<string, Language> = {
   ".lhs": "haskell",
   ".ml": "ocaml",
   ".mli": "ocaml",
+  ".dart": "dart",
 };

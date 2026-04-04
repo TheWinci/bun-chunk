@@ -33,6 +33,7 @@ function getGrammarPath(language: Language): string {
     yaml: "@tree-sitter-grammars/tree-sitter-yaml/tree-sitter-yaml.wasm",
     haskell: "tree-sitter-haskell/tree-sitter-haskell.wasm",
     ocaml: "tree-sitter-ocaml/tree-sitter-ocaml.wasm",
+    dart: "@winci/tree-sitter-dart/tree-sitter-dart.wasm",
   };
 
   if (packagePaths[language]) {

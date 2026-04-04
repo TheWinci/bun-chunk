@@ -45,6 +45,8 @@ export function extractImports(text: string, language: Language): ChunkImport[] 
       return extractHaskellImports(text);
     case "ocaml":
       return extractOCamlImports(text);
+    case "dart":
+      return extractDartImports(text);
     default:
       return [];
   }
@@ -94,6 +96,8 @@ export function extractExports(
       return extractHaskellExports(text, entityType, entityName);
     case "ocaml":
       return extractOCamlExports(text, entityType, entityName);
+    case "dart":
+      return extractDartExports(text, entityType, entityName);
     default:
       return [];
   }
@@ -792,6 +796,53 @@ function extractOCamlImports(text: string): ChunkImport[] {
 function extractOCamlExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   // OCaml: all top-level definitions are exported unless the .mli restricts them
   if (entityName && entityType !== "import") {
+    return [{
+      name: entityName,
+      type: entityType,
+      isDefault: false,
+      isReExport: false,
+    }];
+  }
+  return [];
+}
+
+// --- Dart ---
+
+function extractDartImports(text: string): ChunkImport[] {
+  const imports: ChunkImport[] = [];
+
+  // import 'package:foo/foo.dart'; import 'dart:io'; import 'dart:io' as io;
+  const importRegex = /import\s+['"]([^'"]+)['"](?:\s+as\s+(\w+))?\s*;/g;
+  let match: RegExpExecArray | null;
+  while ((match = importRegex.exec(text)) !== null) {
+    const source = match[1];
+    const alias = match[2];
+    const name = alias ?? source.split("/").pop()?.replace(/\.dart$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: !!alias });
+  }
+
+  // export 'src/foo.dart';
+  const exportRegex = /export\s+['"]([^'"]+)['"](?:\s+as\s+(\w+))?\s*;/g;
+  while ((match = exportRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop()?.replace(/\.dart$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  // part 'src/foo.dart'; part of 'package:foo/foo.dart';
+  const partRegex = /part\s+(?:of\s+)?['"]([^'"]+)['"]\s*;/g;
+  while ((match = partRegex.exec(text)) !== null) {
+    const source = match[1];
+    const name = source.split("/").pop()?.replace(/\.dart$/, "") ?? source;
+    imports.push({ name, source, isDefault: false, isNamespace: false });
+  }
+
+  return imports;
+}
+
+function extractDartExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
+  // Dart: all top-level declarations are public unless prefixed with _
+  if (entityName && !entityName.startsWith("_") && entityType !== "import") {
     return [{
       name: entityName,
       type: entityType,

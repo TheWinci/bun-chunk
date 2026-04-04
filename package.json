@@ -29,6 +29,7 @@
     "chunk": "bun src/cli.ts"
   },
   "dependencies": {
+    "@winci/tree-sitter-dart": "^1.0.0",
     "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
     "@tree-sitter-grammars/tree-sitter-lua": "^0.4.1",
     "@tree-sitter-grammars/tree-sitter-toml": "^0.7.0",

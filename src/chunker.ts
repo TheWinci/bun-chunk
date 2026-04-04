@@ -164,6 +164,11 @@ const NODE_TYPE_MAP: Record<string, ChunkType> = {
   open_module: "import",
   external: "function",
   exception_definition: "type",
+  // Dart
+  mixin_declaration: "trait",
+  extension_declaration: "class",
+  import_or_export: "import",
+  function_signature: "function",
 };
 
 function nodeTypeToChunkType(nodeType: string): ChunkType {
@@ -548,8 +553,10 @@ export async function chunk(
       );
 
       if (children.length > 0) {
+        // Filter to direct children only (exclude grandchildren nested inside another child)
+        const directChildren = filterTopLevel(children);
         // Split large entity using its children as boundaries
-        let childChunks = splitByChildren(lines, entity, children, maxLines, overlap);
+        let childChunks = splitByChildren(lines, entity, directChildren, maxLines, overlap);
 
         // Add context to child chunks if enabled
         if (includeContext) {

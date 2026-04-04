@@ -405,6 +405,40 @@ describe("Haskell", () => {
   });
 });
 
+describe("Dart", () => {
+  test("extracts classes, functions, enums, mixins, extensions", async () => {
+    const code = await readFixture("sample.dart");
+    const { chunks } = await chunk("sample.dart", code);
+
+    const names = chunks.map(c => c.name).filter(Boolean);
+    expect(names).toContain("Config");
+    expect(names).toContain("DataProcessor");
+    expect(names).toContain("Status");
+    expect(names).toContain("Serializable");
+    expect(names).toContain("StringUtils");
+    expect(names).toContain("createProcessor");
+  });
+
+  test("covers all lines", async () => {
+    const code = await readFixture("sample.dart");
+    const { chunks } = await chunk("sample.dart", code);
+    verifyCoverage(code, chunks);
+  });
+
+  test("no overlaps", async () => {
+    const code = await readFixture("sample.dart");
+    const { chunks } = await chunk("sample.dart", code);
+    verifyNoOverlap(chunks);
+  });
+
+  test("extracts imports", async () => {
+    const code = await readFixture("sample.dart");
+    const { fileImports } = await chunk("sample.dart", code);
+    expect(fileImports.length).toBeGreaterThan(0);
+    expect(fileImports.some(i => i.source === "dart:io")).toBe(true);
+  });
+});
+
 describe("OCaml", () => {
   test("extracts functions, types, modules", async () => {
     const code = await readFixture("sample.ml");

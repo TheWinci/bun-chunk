@@ -383,6 +383,17 @@ const OCAML = `
   (constructor_declaration (constructor_name) @name)) @item
 `;
 
+const DART = `
+(class_definition name: (identifier) @name) @item
+(enum_declaration name: (identifier) @name) @item
+(mixin_declaration (identifier) @name) @item
+(extension_declaration (identifier) @name) @item
+
+(program (function_signature name: (identifier) @name) @item)
+
+(import_or_export) @item
+`;
+
 export const QUERIES: Record<Language, string> = {
   typescript: TYPESCRIPT,
   javascript: JAVASCRIPT,
@@ -407,4 +418,5 @@ export const QUERIES: Record<Language, string> = {
   yaml: YAML,
   haskell: HASKELL,
   ocaml: OCAML,
+  dart: DART,
 };
