@@ -579,8 +579,22 @@ export async function chunk(
         }
         chunks.push(...childChunks);
       } else {
-        // No children — line-based split
-        chunks.push(...splitLines(lines, effectiveStart, entity.endLine, maxLines, entity.type, entity.name, overlap));
+        // No children — line-based split. Extract exports from the full
+        // entity text (not per-chunk) so a large standalone function still
+        // shows up in fileExports — without this, every JSDoc'd function
+        // longer than maxLines silently disappears from the export list.
+        const splitChunks = splitLines(lines, effectiveStart, entity.endLine, maxLines, entity.type, entity.name, overlap);
+        const entityExports = extractExports(
+          lines.slice(effectiveStart, entity.endLine + 1).join("\n"),
+          language,
+          entity.type,
+          entity.name,
+        );
+        if (entityExports.length > 0) {
+          allExports.push(...entityExports);
+          if (splitChunks.length > 0) splitChunks[0].exports = entityExports;
+        }
+        chunks.push(...splitChunks);
       }
     }
 

@@ -122,6 +122,27 @@ public class RealPublic {}
       expect(names).toContain("RealPublic");
     });
 
+    test("captures exports for large entities split across chunks (no nested children)", async () => {
+      // Build a function long enough to exceed the default maxLines (60),
+      // with no nested entities — exercises the "splitLines" branch that
+      // previously skipped extractExports entirely.
+      const body = Array.from({ length: 80 }, (_, i) => `  const v${i} = ${i};`).join("\n");
+      const code = `/**
+ * Big standalone function — JSDoc'd and over the line cap.
+ */
+export function bigStandalone(): number {
+${body}
+  return 0;
+}
+
+export function tiny(): number { return 1; }
+`;
+      const { fileExports } = await chunk("big.ts", code);
+      const names = fileExports.map(e => e.name);
+      expect(names).toContain("bigStandalone");
+      expect(names).toContain("tiny");
+    });
+
     test("captures exports preceded by JSDoc / line / block comments", async () => {
       const code = `/**
  * JSDoc on a function.
