@@ -89,6 +89,67 @@ describe("chunk", () => {
       expect(names).toContain("createProcessor");
       expect(names).toContain("helper");
     });
+
+    test("comment containing modifier keyword does not falsely export Rust fn", async () => {
+      const code = `// pub later — see RFC-1234
+fn helper() -> i32 { 1 }
+
+/// pub once stabilised
+fn another() -> i32 { 2 }
+
+pub fn real_export() -> i32 { 3 }
+`;
+      const { fileExports } = await chunk("flag.rs", code);
+      const names = fileExports.map(e => e.name);
+      expect(names).not.toContain("helper");
+      expect(names).not.toContain("another");
+      expect(names).toContain("real_export");
+    });
+
+    test("comment containing modifier keyword does not falsely export Java class", async () => {
+      const code = `// public someday
+class HiddenClass {}
+
+/* public on next refactor */
+class AlsoHidden {}
+
+public class RealPublic {}
+`;
+      const { fileExports } = await chunk("flag.java", code);
+      const names = fileExports.map(e => e.name);
+      expect(names).not.toContain("HiddenClass");
+      expect(names).not.toContain("AlsoHidden");
+      expect(names).toContain("RealPublic");
+    });
+
+    test("captures exports preceded by JSDoc / line / block comments", async () => {
+      const code = `/**
+ * JSDoc on a function.
+ */
+export function withJsDoc(): number { return 1; }
+
+// single line comment
+export function withLineComment(): number { return 2; }
+
+/* short block comment */
+export function withBlockComment(): number { return 3; }
+
+// stacked: license header
+// then a JSDoc
+
+/** another doc */
+export class WithStacked {}
+
+export function noComment(): number { return 4; }
+`;
+      const { fileExports } = await chunk("commented.ts", code);
+      const names = fileExports.map(e => e.name);
+      expect(names).toContain("withJsDoc");
+      expect(names).toContain("withLineComment");
+      expect(names).toContain("withBlockComment");
+      expect(names).toContain("WithStacked");
+      expect(names).toContain("noComment");
+    });
   });
 
   describe("JavaScript", () => {

@@ -169,12 +169,78 @@ function extractJSImports(text: string): ChunkImport[] {
   return imports;
 }
 
+/**
+ * Strip leading whitespace, line comments (`//`), and block comments
+ * (`/* ... *\/`, including JSDoc) so an `export` keyword sitting after a
+ * JSDoc block on an entity chunk still anchors a leading-export check.
+ *
+ * Without this, an entity chunk whose text begins with `/** ... *\/\nexport
+ * function foo()` fails the `^\s*export` regex below and the export is
+ * silently dropped — every JSDoc'd top-level export disappears from the
+ * file's export list. Loop because chunks can stack a license header,
+ * blank line, and a JSDoc above the declaration.
+ */
+/**
+ * Remove every C-style comment from `text`. Used by modifier-keyword
+ * extractors (Rust `pub`, Java/C# `public`, Zig `pub`, Scala/Kotlin
+ * negative `private`/`protected`, C `static`) so a doc comment containing
+ * the keyword cannot trigger a false-positive export.
+ *
+ * Example failure mode without this: a Rust chunk
+ * `// pub later — see RFC-1234\nfn helper() {}` with `entityName = "helper"`
+ * falsely matches `\bpub\b` and emits `helper` as a public export.
+ *
+ * String-literal collisions (e.g. `"http://x"`) are tolerated — a literal
+ * containing `//` may eat into the rest of the line, but modifier-keyword
+ * detection doesn't care about string content. Languages whose comments
+ * don't follow C-style (Python `#`, Lua `--`, Haskell `--`/`{- -}`,
+ * OCaml `(* *)`, Elixir `#`) call language-specific strippers instead.
+ */
+function stripCStyleComments(text: string): string {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/[^\n]*/g, "");
+}
+
+function stripLeadingComments(text: string): string {
+  let s = text;
+  for (;;) {
+    const trimmed = s.replace(/^\s+/, "");
+    if (trimmed.startsWith("//")) {
+      const nl = trimmed.indexOf("\n");
+      s = nl < 0 ? "" : trimmed.slice(nl + 1);
+      continue;
+    }
+    if (trimmed.startsWith("/*")) {
+      const end = trimmed.indexOf("*/");
+      if (end < 0) return trimmed;
+      s = trimmed.slice(end + 2);
+      continue;
+    }
+    // Tree-sitter sometimes splits a JSDoc into a preceding "block" chunk and
+    // leaves the trailing `*/` (and any continuation `* …` lines) on the
+    // declaration chunk. Drop those orphan fragments before the export check.
+    if (trimmed.startsWith("*/")) {
+      s = trimmed.slice(2);
+      continue;
+    }
+    if (trimmed.startsWith("*")) {
+      const nl = trimmed.indexOf("\n");
+      s = nl < 0 ? "" : trimmed.slice(nl + 1);
+      continue;
+    }
+    return trimmed;
+  }
+}
+
 function extractJSExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   const exports: ChunkExport[] = [];
 
-  // Direct declaration exports: export class Foo, export function bar, export const x
-  if (/^\s*export\s+(default\s+)?/.test(text) && entityName) {
-    const isDefault = /^\s*export\s+default\s+/.test(text);
+  // Direct declaration exports: export class Foo, export function bar, export const x.
+  // Strip leading comments first so JSDoc'd declarations still match.
+  const head = stripLeadingComments(text);
+  if (/^export\s+(default\s+)?/.test(head) && entityName) {
+    const isDefault = /^export\s+default\s+/.test(head);
     exports.push({
       name: entityName,
       type: entityType === "export" ? "variable" : entityType,
@@ -320,14 +386,15 @@ function extractRustImports(text: string): ChunkImport[] {
 }
 
 function extractRustExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
-  if (entityName && /^pub\s/m.test(text) && entityType !== "import") {
-    const isPubUse = /^pub\s+use\s/m.test(text);
+  const code = stripCStyleComments(text);
+  if (entityName && /^pub\s/m.test(code) && entityType !== "import") {
+    const isPubUse = /^pub\s+use\s/m.test(code);
     return [{
       name: entityName,
       type: entityType,
       isDefault: false,
       isReExport: isPubUse,
-      reExportSource: isPubUse ? text.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
+      reExportSource: isPubUse ? code.match(/pub\s+use\s+([\w:]+)/)?.[1] : undefined,
     }];
   }
   return [];
@@ -404,7 +471,7 @@ function extractJavaImports(text: string): ChunkImport[] {
 }
 
 function extractJavaExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
-  if (entityName && /\bpublic\b/.test(text) && entityType !== "import" && entityType !== "package") {
+  if (entityName && /\bpublic\b/.test(stripCStyleComments(text)) && entityType !== "import" && entityType !== "package") {
     return [{
       name: entityName,
       type: entityType,
@@ -434,7 +501,7 @@ function extractCImports(text: string): ChunkImport[] {
 
 function extractCExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   // C/C++ doesn't have explicit exports — all non-static top-level symbols are exported
-  if (entityName && !/\bstatic\b/.test(text) && entityType !== "import") {
+  if (entityName && !/\bstatic\b/.test(stripCStyleComments(text)) && entityType !== "import") {
     return [{
       name: entityName,
       type: entityType,
@@ -462,7 +529,7 @@ function extractCSharpImports(text: string): ChunkImport[] {
 }
 
 function extractCSharpExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
-  if (entityName && /\bpublic\b/.test(text) && entityType !== "import") {
+  if (entityName && /\bpublic\b/.test(stripCStyleComments(text)) && entityType !== "import") {
     return [{
       name: entityName,
       type: entityType,
@@ -564,7 +631,7 @@ function extractScalaImports(text: string): ChunkImport[] {
 
 function extractScalaExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   // Scala: public by default unless marked private/protected
-  if (entityName && !/\b(private|protected)\b/.test(text) && entityType !== "import" && entityType !== "package") {
+  if (entityName && !/\b(private|protected)\b/.test(stripCStyleComments(text)) && entityType !== "import" && entityType !== "package") {
     return [{
       name: entityName,
       type: entityType,
@@ -617,7 +684,7 @@ function extractKotlinImports(text: string): ChunkImport[] {
 
 function extractKotlinExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   // Kotlin: public by default unless marked private/protected/internal
-  if (entityName && !/\b(private|protected|internal)\b/.test(text) && entityType !== "import" && entityType !== "package") {
+  if (entityName && !/\b(private|protected|internal)\b/.test(stripCStyleComments(text)) && entityType !== "import" && entityType !== "package") {
     return [{
       name: entityName,
       type: entityType,
@@ -675,7 +742,7 @@ function extractZigImports(text: string): ChunkImport[] {
 
 function extractZigExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
   // Zig: pub keyword marks public symbols
-  if (entityName && /\bpub\b/.test(text) && entityType !== "import") {
+  if (entityName && /\bpub\b/.test(stripCStyleComments(text)) && entityType !== "import") {
     return [{
       name: entityName,
       type: entityType,
@@ -704,9 +771,11 @@ function extractElixirImports(text: string): ChunkImport[] {
 }
 
 function extractElixirExports(text: string, entityType: ChunkType, entityName: string | null): ChunkExport[] {
-  // Elixir: def is public, defp is private
+  // Elixir: def is public, defp is private. Strip `#` line comments first
+  // so a `# defp later` note above a `def` doesn't falsely flag it private.
   if (entityName && entityType !== "import") {
-    const isPrivate = /\bdefp\b/.test(text) || /\bdefmacrop\b/.test(text) || /\bdefguardp\b/.test(text);
+    const code = text.replace(/#[^\n]*/g, "");
+    const isPrivate = /\bdefp\b/.test(code) || /\bdefmacrop\b/.test(code) || /\bdefguardp\b/.test(code);
     if (!isPrivate) {
       return [{
         name: entityName,
