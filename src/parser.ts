@@ -4,7 +4,7 @@ import { resolve, join } from "path";
 
 let initialized = false;
 const grammarCache = new Map<Language, TSLanguage>();
-const queryCache = new Map<Language, Query>();
+const queryCache = new Map<string, Query>();
 
 /** WASM file paths per language — prefer per-package WASM, fallback to tree-sitter-wasms */
 function getGrammarPath(language: Language): string {
@@ -70,12 +70,13 @@ export async function parse(code: string, language: Language) {
   return tree;
 }
 
-export async function loadQuery(language: Language, queryString: string): Promise<Query> {
-  const cached = queryCache.get(language);
+export async function loadQuery(language: Language, queryString: string, key: string = "default"): Promise<Query> {
+  const cacheKey = `${language}:${key}`;
+  const cached = queryCache.get(cacheKey);
   if (cached) return cached;
 
   const grammar = await loadGrammar(language);
   const query = new Query(grammar, queryString);
-  queryCache.set(language, query);
+  queryCache.set(cacheKey, query);
   return query;
 }

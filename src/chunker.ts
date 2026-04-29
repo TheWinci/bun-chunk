@@ -2,7 +2,8 @@ import type { Node as SyntaxNode, Tree } from "web-tree-sitter";
 import { parse, loadQuery } from "./parser";
 import { QUERIES } from "./queries";
 import { extractImports, extractExports } from "./imports";
-import type { Chunk, ChunkImport, ChunkExport, ChunkOptions, ChunkResult, ChunkType, Language } from "./types";
+import { extractReferences } from "./references";
+import type { Chunk, ChunkImport, ChunkExport, ChunkReferences, ChunkOptions, ChunkResult, ChunkType, Language } from "./types";
 import { EXTENSION_MAP } from "./types";
 import { extname } from "path";
 import { createHash } from "crypto";
@@ -463,6 +464,7 @@ export async function chunk(
   const overlap = options.overlap ?? 0;
   const includeContext = options.includeContext ?? false;
   const includeMetadata = options.includeMetadata ?? false;
+  const includeReferences = options.includeReferences ?? true;
 
   const lines = code.split("\n");
 
@@ -612,12 +614,52 @@ export async function chunk(
   // Collapse consecutive imports
   chunks = collapseImports(chunks, lines, maxLines);
 
+  // Extract identifier references when opted in. Filter out the chunk's own
+  // declaration name on its declaration line (function declaring itself is
+  // not a self-reference; recursive calls inside the body still surface
+  // because they appear on a different line). Per-chunk references is the
+  // sole emission point — consumers needing a file-level view aggregate
+  // from chunks themselves (chunks cover all non-blank source lines).
+  if (includeReferences) {
+    const allReferences = await extractReferences(tree, language);
+    attachReferences(chunks, allReferences);
+  }
+
   // Add metadata if requested
   if (includeMetadata) {
     chunks = addMetadata(chunks, filepath, language);
   }
 
   return { chunks, fileImports: allImports, fileExports: allExports };
+}
+
+/** Attach references to the chunks whose line range contains them. */
+function attachReferences(chunks: Chunk[], references: ChunkReferences): void {
+  for (const [name, lines] of Object.entries(references)) {
+    for (const line of lines) {
+      const chunk = findContainingChunk(chunks, line);
+      if (!chunk) continue;
+      if (chunk.name === name && line === chunk.startLine) {
+        // Chunk's own declaration name on its declaration line — skip
+        continue;
+      }
+      if (!chunk.references) chunk.references = Object.create(null);
+      const bucket = chunk.references![name];
+      if (bucket) bucket.push(line);
+      else chunk.references![name] = [line];
+    }
+  }
+  // Lines were inserted in file-level sorted order per name, so per-chunk
+  // arrays stay sorted. No re-sort needed.
+}
+
+/** Find the chunk whose line range contains the given line (linear scan; chunks
+ * are non-overlapping after collapseImports). */
+function findContainingChunk(chunks: Chunk[], line: number): Chunk | null {
+  for (const c of chunks) {
+    if (line >= c.startLine && line <= c.endLine) return c;
+  }
+  return null;
 }
 
 /** Filter entities to only top-level (not nested inside another entity).

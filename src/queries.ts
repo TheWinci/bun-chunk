@@ -394,6 +394,156 @@ const DART = `
 (import_or_export) @item
 `;
 
+/**
+ * Per-language identifier capture queries (Approach A — Phase A).
+ * Captures every identifier-like node as `@ref` so the chunker can populate
+ * `chunk.references`. Filtering of imports/exports/self-decl happens in the
+ * chunker, not here. Languages with no call/identifier semantics (HTML, CSS,
+ * TOML, YAML) get empty strings — no references emitted.
+ */
+const TS_REFS = `
+[
+  (identifier)
+  (property_identifier)
+  (type_identifier)
+  (shorthand_property_identifier)
+] @ref
+`;
+
+const JS_REFS = `
+[
+  (identifier)
+  (property_identifier)
+  (shorthand_property_identifier)
+] @ref
+`;
+
+const PY_REFS = `(identifier) @ref`;
+
+const RUST_REFS = `
+[
+  (identifier)
+  (type_identifier)
+  (field_identifier)
+  (shorthand_field_identifier)
+] @ref
+`;
+
+const GO_REFS = `
+[
+  (identifier)
+  (field_identifier)
+  (type_identifier)
+  (package_identifier)
+] @ref
+`;
+
+const JAVA_REFS = `
+[
+  (identifier)
+  (type_identifier)
+] @ref
+`;
+
+const C_REFS = `
+[
+  (identifier)
+  (type_identifier)
+  (field_identifier)
+] @ref
+`;
+
+const CPP_REFS = `
+[
+  (identifier)
+  (type_identifier)
+  (field_identifier)
+  (namespace_identifier)
+] @ref
+`;
+
+const CSHARP_REFS = `(identifier) @ref`;
+
+const RUBY_REFS = `
+[
+  (identifier)
+  (constant)
+] @ref
+`;
+
+const PHP_REFS = `
+[
+  (name)
+  (variable_name)
+] @ref
+`;
+
+const SCALA_REFS = `(identifier) @ref`;
+
+const KOTLIN_REFS = `(identifier) @ref`;
+
+const LUA_REFS = `(identifier) @ref`;
+
+const ZIG_REFS = `(identifier) @ref`;
+
+const ELIXIR_REFS = `
+[
+  (identifier)
+  (alias)
+] @ref
+`;
+
+const BASH_REFS = `
+[
+  (variable_name)
+  (command_name)
+] @ref
+`;
+
+const HASKELL_REFS = `
+[
+  (variable)
+  (constructor)
+] @ref
+`;
+
+const OCAML_REFS = `
+[
+  (value_name)
+  (type_constructor)
+  (module_name)
+] @ref
+`;
+
+const DART_REFS = `(identifier) @ref`;
+
+export const REFERENCE_QUERIES: Record<Language, string> = {
+  typescript: TS_REFS,
+  javascript: JS_REFS,
+  python: PY_REFS,
+  rust: RUST_REFS,
+  go: GO_REFS,
+  java: JAVA_REFS,
+  c: C_REFS,
+  cpp: CPP_REFS,
+  csharp: CSHARP_REFS,
+  ruby: RUBY_REFS,
+  php: PHP_REFS,
+  scala: SCALA_REFS,
+  html: "",
+  css: "",
+  kotlin: KOTLIN_REFS,
+  lua: LUA_REFS,
+  zig: ZIG_REFS,
+  elixir: ELIXIR_REFS,
+  bash: BASH_REFS,
+  toml: "",
+  yaml: "",
+  haskell: HASKELL_REFS,
+  ocaml: OCAML_REFS,
+  dart: DART_REFS,
+};
+
 export const QUERIES: Record<Language, string> = {
   typescript: TYPESCRIPT,
   javascript: JAVASCRIPT,

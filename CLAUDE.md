@@ -110,18 +110,21 @@ bun --hot ./index.ts
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
 
-## Using local-rag tools
+## Using mimirs tools
 
-This project has a local RAG index (local-rag). Use these MCP tools:
+This project has a local RAG index (mimirs). Use these MCP tools:
 
 - **`search`**: Discover which files are relevant to a topic. Returns file paths
   with snippet previews — use this when you need to know *where* something is.
+  Supports optional `extensions`, `dirs`, and `excludeDirs` filters to scope
+  results (e.g. restrict to `.ts` files, or under `src/`).
 - **`read_relevant`**: Get the actual content of relevant semantic chunks —
   individual functions, classes, or markdown sections — ranked by relevance.
   Results include exact line ranges (`src/db.ts:42-67`) so you can navigate
   directly to the edit location. Use this instead of `search` + `Read` when
   you need the content itself. Two chunks from the same file can both appear
-  (no file deduplication).
+  (no file deduplication). Accepts the same `extensions`/`dirs`/`excludeDirs`
+  filters as `search`.
 - **`project_map`**: When you need to understand how files relate to each other,
   generate a dependency graph. Use `focus` to zoom into a specific file's
   neighborhood. This is faster than reading import statements across many files.
@@ -152,5 +155,15 @@ This project has a local RAG index (local-rag). Use these MCP tools:
   `[NOTE]` blocks inline in `read_relevant` results automatically.
 - **`get_annotations`**: Retrieve all notes for a file, or search semantically
   across all annotations to find relevant caveats before editing.
+- **`delete_annotation`**: Remove an annotation that is no longer relevant — a
+  fixed bug, a lifted constraint, or a note on deleted code. Use
+  `get_annotations` first to find the ID.
+- **`depends_on`**: List all files that a given file imports — its dependencies.
+- **`depended_on_by`**: List all files that import a given file — reverse
+  dependencies. Use before modifying a shared module to see who depends on it.
 - **`write_relevant`**: Before adding new code or docs, find the best insertion
   point — returns the most semantically appropriate file and anchor.
+- **`generate_wiki`**: Generate or update a structured markdown wiki for the
+  codebase. Call with `run: true` to immediately execute all phases. Follow
+  the returned instructions step by step using the other mimirs tools to
+  build wiki pages in `wiki/`.

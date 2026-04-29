@@ -21,6 +21,14 @@ export interface ChunkImport {
   resolvedPath?: string;
 }
 
+/** Identifier references aggregated as `{ name -> sorted lines }`. Compact
+ *  shape chosen over `Array<{ name, line }>` to cut JSON payload (measured
+ *  126% → 19% growth on a 1347-file corpus after also dropping the
+ *  file-level aggregate). Lines are 0-indexed within the file. Consumers
+ *  needing a file-level view aggregate from `chunk.references` directly —
+ *  chunks cover all non-blank source lines. */
+export type ChunkReferences = Record<string, number[]>;
+
 /** A structured export extracted from a chunk */
 export interface ChunkExport {
   /** Exported symbol name */
@@ -61,6 +69,8 @@ export interface Chunk {
   imports?: ChunkImport[];
   /** Structured exports (populated on export/declaration chunks) */
   exports?: ChunkExport[];
+  /** Identifier references inside this chunk (excludes self-declaration and imports/exports) */
+  references?: ChunkReferences;
   /** Parent scope chain when context injection is enabled (e.g., ["JsonParser", "parse"]) */
   context?: string[];
   /** Name of the enclosing entity when this chunk is a child (e.g., class name for a method) */
@@ -120,6 +130,13 @@ export interface ChunkOptions {
   overlap?: number;
   /** Chunking strategy. Default: "semantic" */
   strategy?: ChunkStrategy;
+  /** Emit identifier references on chunks. Default: true.
+   *  Measured ~19% JSON payload overhead with the compact
+   *  `Record<name, line[]>` shape (down from ~126% on the naive shape).
+   *  Most consumers want this — call graphs, cross-symbol resolution,
+   *  entry-point discovery. Pure embedding pipelines that need raw chunks
+   *  only can pass `false` to opt out and skip the extra tree-sitter pass. */
+  includeReferences?: boolean;
 }
 
 /** File extension to language mapping */
