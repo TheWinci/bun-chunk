@@ -8,9 +8,16 @@ import type { ChunkReferences, Language } from "./types";
  * import/export/use/package statement" — references inside these should not
  * pollute the call graph. References in re-exports also fall out via these.
  */
+// `export_statement` deliberately omitted for TS/JS: it wraps both
+// re-exports (`export { foo } from "./x"`) and exported declarations
+// (`export function foo() { ... }`). Listing it here would walk the
+// entire ancestor chain and reject every identifier inside the body of
+// an exported function/class/etc. Re-exports are already filtered via
+// `export_clause` / `export_specifier`, which only sit on the re-export
+// path — not on declaration exports.
 const IMPORT_EXPORT_ANCESTORS: Partial<Record<Language, string[]>> = {
-  typescript: ["import_statement", "export_statement", "export_clause", "export_specifier", "import_clause", "import_specifier", "namespace_import"],
-  javascript: ["import_statement", "export_statement", "export_clause", "export_specifier", "import_clause", "import_specifier", "namespace_import"],
+  typescript: ["import_statement", "export_clause", "export_specifier", "import_clause", "import_specifier", "namespace_import"],
+  javascript: ["import_statement", "export_clause", "export_specifier", "import_clause", "import_specifier", "namespace_import"],
   python: ["import_statement", "import_from_statement", "future_import_statement"],
   rust: ["use_declaration"],
   go: ["import_declaration", "import_spec", "package_clause"],
