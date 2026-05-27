@@ -64,7 +64,7 @@ const NODE_TYPE_MAP: Record<string, ChunkType> = {
   type_item: "type",
   const_item: "constant",
   use_declaration: "import",
-  // Go
+  // Go / Java shared node types
   type_declaration: "type",
   type_spec: "type",
   method_declaration: "method",
@@ -81,7 +81,6 @@ const NODE_TYPE_MAP: Record<string, ChunkType> = {
   import_declaration_java: "import",
   record_declaration: "record",
   annotation_type_declaration: "annotation_type",
-  method_declaration: "method",
   constructor_declaration: "method",
   field_declaration_java: "field",
   static_initializer: "block",
@@ -155,11 +154,9 @@ const NODE_TYPE_MAP: Record<string, ChunkType> = {
   data_type: "type",
   newtype: "type",
   type_synomym: "type",
-  class: "class",
   instance: "impl",
-  // OCaml
+  // OCaml (Ruby/Haskell share `class`; C/OCaml share `type_definition`)
   value_definition: "function",
-  type_definition: "type",
   module_definition: "module",
   module_type_definition: "type",
   open_module: "import",
@@ -482,6 +479,9 @@ export async function chunk(
   try {
     tree = await parse(code, language);
   } catch {
+    return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
+  }
+  if (!tree) {
     return fallbackResult(lines, maxLines, overlap, filepath, language, includeMetadata);
   }
 
