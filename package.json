@@ -1,6 +1,6 @@
 {
   "name": "@winci/bun-chunk",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "AST-aware code chunking for RAG pipelines — fast, simple, Bun-native",
   "type": "module",
   "license": "MIT",

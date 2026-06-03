@@ -382,10 +382,11 @@ function extractPythonExports(text: string, entityType: ChunkType, entityName: s
 function extractRustImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // use std::fs; use std::path::Path; use crate::foo::{bar, baz as qux};
+  // use std::fs; use ::std::fmt; use crate::foo::{bar, baz as qux};
   // The path is matched segment-by-segment so it doesn't swallow the trailing
-  // `::` before a `{ ... }` group (which would drop braced imports entirely).
-  const useRegex = /use\s+(\w+(?:::\w+)*)(?:::\{([^}]*)\})?(?:\s+as\s+(\w+))?/g;
+  // `::` before a `{ ... }` group (which would drop braced imports entirely); an
+  // optional leading `::` (explicit crate root) is allowed.
+  const useRegex = /use\s+((?:::)?\w+(?:::\w+)*)(?:::\{([^}]*)\})?(?:\s+as\s+(\w+))?/g;
   let match: RegExpExecArray | null;
   while ((match = useRegex.exec(text)) !== null) {
     const [, path, namedStr, alias] = match;
@@ -704,8 +705,10 @@ function extractCSSImports(text: string): ChunkImport[] {
 function extractKotlinImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // import com.example.Foo, import com.example.*, import com.example.Foo as Bar
-  const importRegex = /import\s+([\w.]+(?:\.\*)?)(?:\s+as\s+(\w+))?/g;
+  // import com.example.Foo, import com.example.*, import com.example.Foo as Bar.
+  // Segment-by-segment so the trailing `.` before `*` isn't swallowed (which
+  // left the wildcard unparsed and the name empty).
+  const importRegex = /import\s+(\w+(?:\.\w+)*(?:\.\*)?)(?:\s+as\s+(\w+))?/g;
   let match: RegExpExecArray | null;
   while ((match = importRegex.exec(text)) !== null) {
     const fullPath = match[1];
@@ -780,7 +783,8 @@ function extractZigImports(text: string): ChunkImport[] {
   while ((match = importRegex.exec(text)) !== null) {
     const name = match[1];
     const source = match[2];
-    const original = source.split(/[./]/).pop()?.replace(/\.zig$/, "") ?? source;
+    // Split on "/" only (not "."), else "foo.zig" → "zig". Strip the extension after.
+    const original = source.split("/").pop()?.replace(/\.zig$/, "") ?? source;
     pushImport(imports, { name, source, isDefault: false, isNamespace: true }, original);
   }
 
@@ -910,8 +914,10 @@ function extractOCamlImports(text: string): ChunkImport[] {
     imports.push({ name, source, isDefault: false, isNamespace: true });
   }
 
-  // module M = Long.Path  (module alias)
-  const moduleAliasRegex = /module\s+(\w+)\s*=\s*([\w.]+)/g;
+  // module M = Long.Path  (module alias). The RHS must be a module PATH
+  // (uppercase first char), so `module M = struct … end` / `sig … end` and
+  // functor applications `module M = Make(X)` are excluded.
+  const moduleAliasRegex = /module\s+(\w+)\s*=\s*([A-Z][\w.]*)\b(?!\s*\()/g;
   while ((match = moduleAliasRegex.exec(text)) !== null) {
     const name = match[1];
     const source = match[2];

@@ -55,3 +55,39 @@ describe("unaliased imports leave `imported` undefined", () => {
     });
   }
 });
+
+describe("edge cases surfaced in review", () => {
+  test("zig: .zig file basename isn't mangled to 'zig'", () => {
+    // Binding differs from the basename, so `imported` is set — and must be the
+    // real basename "thing", not "zig" (the old split(/[./]/) bug).
+    const imp = find(extractImports(`const myThing = @import("a/thing.zig");`, "zig"), "myThing");
+    expect(imp!.imported).toBe("thing");
+  });
+
+  test("ocaml: `module M = struct … end` is not parsed as an import", () => {
+    const imports = extractImports("module M = struct let x = 1 end", "ocaml");
+    expect(imports.some((i) => i.source === "struct")).toBe(false);
+  });
+
+  test("ocaml: a real module alias is captured", () => {
+    const imp = find(extractImports("module L = Core.List", "ocaml"), "L");
+    expect(imp!.imported).toBe("List");
+  });
+
+  test("rust: explicit-root `use ::std::fmt;` still extracts", () => {
+    const imp = find(extractImports("use ::std::fmt;", "rust"), "fmt");
+    expect(imp).toBeDefined();
+  });
+
+  test("rust: braced import with rename still works", () => {
+    const imps = extractImports("use crate::a::{b, c as d};", "rust");
+    expect(find(imps, "b")).toBeDefined();
+    expect(find(imps, "d")!.imported).toBe("c");
+  });
+
+  test("kotlin: wildcard import parses to '*'", () => {
+    const imp = find(extractImports("import com.example.*", "kotlin"), "*");
+    expect(imp).toBeDefined();
+    expect(imp!.isNamespace).toBe(true);
+  });
+});
