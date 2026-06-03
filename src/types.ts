@@ -9,8 +9,15 @@ export type Language =
 
 /** A structured import extracted from a chunk */
 export interface ChunkImport {
-  /** Imported name (e.g., "readFile", "Config") */
+  /** Local binding name as referenced in code (e.g., "readFile", "Config").
+   *  For an aliased import (`import { getDB as g }`) this is the alias ("g") —
+   *  the original source name is in `imported`. */
   name: string;
+  /** Original source name when the import is aliased — e.g. for
+   *  `import { getDB as g }`, `name` is "g" and `imported` is "getDB". Omitted
+   *  when there's no alias (the binding already equals the source name). Lets
+   *  consumers map an aliased call site back to the real symbol. */
+  imported?: string;
   /** Module specifier (e.g., "fs/promises", "./utils") */
   source: string;
   /** Whether this is a default import */

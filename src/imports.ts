@@ -2,6 +2,16 @@ import type { Node as SyntaxNode, Tree } from "web-tree-sitter";
 import type { ChunkImport, ChunkExport, ChunkType, Language } from "./types";
 
 /**
+ * Push an import, recording `imported` (the original source name) only when it
+ * differs from the local binding `imp.name` — i.e. the import is aliased. This
+ * lets consumers map an aliased reference back to the real exported symbol.
+ */
+function pushImport(out: ChunkImport[], imp: ChunkImport, imported?: string): void {
+  if (imported && imported !== imp.name) imp.imported = imported;
+  out.push(imp);
+}
+
+/**
  * Extract structured imports from a chunk's AST node or text.
  * Works across all supported languages.
  */
@@ -135,7 +145,7 @@ function extractJSImports(text: string): ChunkImport[] {
         const parts = item.split(/\s+as\s+/);
         const name = parts[parts.length - 1].trim();
         if (name) {
-          imports.push({ name, source, isDefault: false, isNamespace: false });
+          pushImport(imports, { name, source, isDefault: false, isNamespace: false }, parts[0].trim());
         }
       }
     }
@@ -159,9 +169,14 @@ function extractJSImports(text: string): ChunkImport[] {
       imports.push({ name: defaultName, source, isDefault: true, isNamespace: false });
     }
     if (namedStr) {
-      const names = namedStr.split(",").map(s => s.trim().split(/\s*:\s*/)[0].trim()).filter(Boolean);
-      for (const name of names) {
-        imports.push({ name, source, isDefault: false, isNamespace: false });
+      // `{ a }` or renamed `{ a: b }` (property `a` bound locally as `b`).
+      const items = namedStr.split(",").map(s => s.trim()).filter(Boolean);
+      for (const item of items) {
+        const parts = item.split(/\s*:\s*/);
+        const name = parts[parts.length - 1].trim();
+        if (name) {
+          pushImport(imports, { name, source, isDefault: false, isNamespace: false }, parts[0].trim());
+        }
       }
     }
   }
@@ -317,12 +332,13 @@ function extractPythonImports(text: string): ChunkImport[] {
     const [, source, namesStr] = match;
     // Handle parenthesized imports
     const cleanNames = namesStr.replace(/[()]/g, "");
-    const names = cleanNames.split(",").map(s => {
-      const parts = s.trim().split(/\s+as\s+/);
-      return parts[parts.length - 1].trim();
-    }).filter(n => n && n !== "\\");
-    for (const name of names) {
-      imports.push({ name, source, isDefault: false, isNamespace: false });
+    const items = cleanNames.split(",").map(s => s.trim()).filter(s => s && s !== "\\");
+    for (const item of items) {
+      const parts = item.split(/\s+as\s+/);
+      const name = parts[parts.length - 1].trim();
+      if (name && name !== "\\") {
+        pushImport(imports, { name, source, isDefault: false, isNamespace: false }, parts[0].trim());
+      }
     }
   }
 
@@ -335,7 +351,12 @@ function extractPythonImports(text: string): ChunkImport[] {
       const name = parts[parts.length - 1].trim();
       const source = parts[0].trim();
       if (name && source) {
-        imports.push({ name, source, isDefault: false, isNamespace: parts.length > 1 });
+        const aliased = parts.length > 1;
+        pushImport(
+          imports,
+          { name, source, isDefault: false, isNamespace: aliased },
+          aliased ? (source.split(".").pop() ?? source) : undefined,
+        );
       }
     }
   }
@@ -361,24 +382,28 @@ function extractPythonExports(text: string, entityType: ChunkType, entityName: s
 function extractRustImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // use std::fs; use std::path::Path; use crate::foo::{bar, baz};
-  const useRegex = /use\s+([\w:]+)(?:::\{([^}]*)\})?(?:\s+as\s+(\w+))?/g;
+  // use std::fs; use std::path::Path; use crate::foo::{bar, baz as qux};
+  // The path is matched segment-by-segment so it doesn't swallow the trailing
+  // `::` before a `{ ... }` group (which would drop braced imports entirely).
+  const useRegex = /use\s+(\w+(?:::\w+)*)(?:::\{([^}]*)\})?(?:\s+as\s+(\w+))?/g;
   let match: RegExpExecArray | null;
   while ((match = useRegex.exec(text)) !== null) {
     const [, path, namedStr, alias] = match;
     const source = path;
 
     if (namedStr) {
-      const names = namedStr.split(",").map(s => {
-        const parts = s.trim().split(/\s+as\s+/);
-        return parts[parts.length - 1].trim();
-      }).filter(Boolean);
-      for (const name of names) {
-        imports.push({ name, source, isDefault: false, isNamespace: false });
+      const items = namedStr.split(",").map(s => s.trim()).filter(Boolean);
+      for (const item of items) {
+        const parts = item.split(/\s+as\s+/);
+        const name = parts[parts.length - 1].trim();
+        if (name) {
+          pushImport(imports, { name, source, isDefault: false, isNamespace: false }, parts[0].trim());
+        }
       }
     } else {
-      const name = alias ?? path.split("::").pop() ?? path;
-      imports.push({ name, source, isDefault: false, isNamespace: false });
+      const original = path.split("::").pop() ?? path;
+      const name = alias ?? original;
+      pushImport(imports, { name, source, isDefault: false, isNamespace: false }, original);
     }
   }
 
@@ -409,8 +434,9 @@ function extractGoImports(text: string): ChunkImport[] {
   function addImport(alias: string | undefined, source: string) {
     if (seen.has(source)) return;
     seen.add(source);
-    const name = alias ?? source.split("/").pop() ?? source;
-    imports.push({ name, source, isDefault: false, isNamespace: alias === "." });
+    const original = source.split("/").pop() ?? source;
+    const name = alias ?? original;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: alias === "." }, original);
   }
 
   // Grouped imports (check first to track which sources are in groups)
@@ -517,8 +543,18 @@ function extractCExports(text: string, entityType: ChunkType, entityName: string
 function extractCSharpImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  const usingRegex = /using\s+(?:static\s+)?([\w.]+)\s*;/g;
+  // Alias form first: using Alias = Namespace.Type;  (the plain regex below
+  // requires `;` right after the path, so it won't double-match these.)
+  const aliasRegex = /using\s+(\w+)\s*=\s*([\w.]+)\s*;/g;
   let match: RegExpExecArray | null;
+  while ((match = aliasRegex.exec(text)) !== null) {
+    const name = match[1];
+    const source = match[2];
+    const original = source.split(".").pop() ?? source;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: false }, original);
+  }
+
+  const usingRegex = /using\s+(?:static\s+)?([\w.]+)\s*;/g;
   while ((match = usingRegex.exec(text)) !== null) {
     const source = match[1];
     const name = source.split(".").pop() ?? source;
@@ -579,8 +615,9 @@ function extractPHPImports(text: string): ChunkImport[] {
   while ((match = useRegex.exec(text)) !== null) {
     const source = match[1];
     const alias = match[2];
-    const name = alias ?? source.split("\\").pop() ?? source;
-    imports.push({ name, source, isDefault: false, isNamespace: false });
+    const original = source.split("\\").pop() ?? source;
+    const name = alias ?? original;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: false }, original);
   }
 
   return imports;
@@ -604,19 +641,23 @@ function extractPHPExports(text: string, entityType: ChunkType, entityName: stri
 function extractScalaImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  const importRegex = /import\s+([\w.]+)(?:\.(\{[^}]+\}|_|\*))?/g;
+  // Match the path segment-by-segment so it doesn't swallow the trailing `.`
+  // before a `{ ... }` selector (which would drop braced imports entirely).
+  const importRegex = /import\s+(\w+(?:\.\w+)*)(?:\.(\{[^}]+\}|_|\*))?/g;
   let match: RegExpExecArray | null;
   while ((match = importRegex.exec(text)) !== null) {
     const basePath = match[1];
     const selector = match[2];
 
     if (selector?.startsWith("{")) {
-      const names = selector.slice(1, -1).split(",").map(s => {
-        const parts = s.trim().split(/\s*=>\s*/);
-        return parts[parts.length - 1].trim();
-      }).filter(n => n && n !== "_");
-      for (const name of names) {
-        imports.push({ name, source: basePath, isDefault: false, isNamespace: false });
+      // Scala renames use `=>`: import a.{B => C}
+      const items = selector.slice(1, -1).split(",").map(s => s.trim()).filter(Boolean);
+      for (const item of items) {
+        const parts = item.split(/\s*=>\s*/);
+        const name = parts[parts.length - 1].trim();
+        if (name && name !== "_") {
+          pushImport(imports, { name, source: basePath, isDefault: false, isNamespace: false }, parts[0].trim());
+        }
       }
     } else if (selector === "_" || selector === "*") {
       imports.push({ name: "*", source: basePath, isDefault: false, isNamespace: true });
@@ -663,20 +704,21 @@ function extractCSSImports(text: string): ChunkImport[] {
 function extractKotlinImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // import com.example.Foo, import com.example.*
-  const importRegex = /import\s+([\w.]+(?:\.\*)?)/g;
+  // import com.example.Foo, import com.example.*, import com.example.Foo as Bar
+  const importRegex = /import\s+([\w.]+(?:\.\*)?)(?:\s+as\s+(\w+))?/g;
   let match: RegExpExecArray | null;
   while ((match = importRegex.exec(text)) !== null) {
     const fullPath = match[1];
+    const alias = match[2];
     const isWildcard = fullPath.endsWith(".*");
-    const name = isWildcard ? "*" : (fullPath.split(".").pop() ?? fullPath);
+    const original = isWildcard ? "*" : (fullPath.split(".").pop() ?? fullPath);
+    const name = alias ?? original;
     const source = isWildcard ? fullPath.slice(0, -2) : fullPath.split(".").slice(0, -1).join(".");
-    imports.push({
-      name,
-      source,
-      isDefault: false,
-      isNamespace: isWildcard,
-    });
+    pushImport(
+      imports,
+      { name, source, isDefault: false, isNamespace: isWildcard },
+      original,
+    );
   }
 
   return imports;
@@ -700,13 +742,15 @@ function extractKotlinExports(text: string, entityType: ChunkType, entityName: s
 function extractLuaImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // require("module") or require "module"
-  const requireRegex = /require\s*[\(]?\s*["']([^"']+)["']\s*[\)]?/g;
+  // local m = require("module"); or bare require("module")
+  const requireRegex = /(?:local\s+(\w+)\s*=\s*)?require\s*[\(]?\s*["']([^"']+)["']\s*[\)]?/g;
   let match: RegExpExecArray | null;
   while ((match = requireRegex.exec(text)) !== null) {
-    const source = match[1];
-    const name = source.split(/[./]/).pop() ?? source;
-    imports.push({ name, source, isDefault: false, isNamespace: false });
+    const binding = match[1];
+    const source = match[2];
+    const original = source.split(/[./]/).pop() ?? source;
+    const name = binding ?? original;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: false }, original);
   }
 
   return imports;
@@ -730,11 +774,14 @@ function extractLuaExports(text: string, entityType: ChunkType, entityName: stri
 function extractZigImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // const std = @import("std");
+  // const std = @import("std");  (the binding name is the local alias)
   const importRegex = /(?:const|var)\s+(\w+)\s*=\s*@import\s*\(\s*"([^"]+)"\s*\)/g;
   let match: RegExpExecArray | null;
   while ((match = importRegex.exec(text)) !== null) {
-    imports.push({ name: match[1], source: match[2], isDefault: false, isNamespace: true });
+    const name = match[1];
+    const source = match[2];
+    const original = source.split(/[./]/).pop()?.replace(/\.zig$/, "") ?? source;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: true }, original);
   }
 
   return imports;
@@ -758,13 +805,16 @@ function extractZigExports(text: string, entityType: ChunkType, entityName: stri
 function extractElixirImports(text: string): ChunkImport[] {
   const imports: ChunkImport[] = [];
 
-  // import Module, alias Module, use Module, require Module
-  const importRegex = /(?:import|alias|use|require)\s+([\w.]+)/g;
+  // import Module, alias Module, use Module, require Module,
+  // alias Foo.Bar, as: Baz
+  const importRegex = /(?:import|alias|use|require)\s+([\w.]+)(?:\s*,\s*as:\s*([\w.]+))?/g;
   let match: RegExpExecArray | null;
   while ((match = importRegex.exec(text)) !== null) {
     const source = match[1];
-    const name = source.split(".").pop() ?? source;
-    imports.push({ name, source, isDefault: false, isNamespace: false });
+    const aliasMod = match[2];
+    const original = source.split(".").pop() ?? source;
+    const name = aliasMod ? (aliasMod.split(".").pop() ?? aliasMod) : original;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: false }, original);
   }
 
   return imports;
@@ -824,8 +874,9 @@ function extractHaskellImports(text: string): ChunkImport[] {
         imports.push({ name, source, isDefault: false, isNamespace: false });
       }
     } else {
-      const name = alias ?? source.split(".").pop() ?? source;
-      imports.push({ name, source, isDefault: false, isNamespace: !!alias });
+      const original = source.split(".").pop() ?? source;
+      const name = alias ?? original;
+      pushImport(imports, { name, source, isDefault: false, isNamespace: !!alias }, original);
     }
   }
 
@@ -859,6 +910,15 @@ function extractOCamlImports(text: string): ChunkImport[] {
     imports.push({ name, source, isDefault: false, isNamespace: true });
   }
 
+  // module M = Long.Path  (module alias)
+  const moduleAliasRegex = /module\s+(\w+)\s*=\s*([\w.]+)/g;
+  while ((match = moduleAliasRegex.exec(text)) !== null) {
+    const name = match[1];
+    const source = match[2];
+    const original = source.split(".").pop() ?? source;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: true }, original);
+  }
+
   return imports;
 }
 
@@ -886,8 +946,9 @@ function extractDartImports(text: string): ChunkImport[] {
   while ((match = importRegex.exec(text)) !== null) {
     const source = match[1];
     const alias = match[2];
-    const name = alias ?? source.split("/").pop()?.replace(/\.dart$/, "") ?? source;
-    imports.push({ name, source, isDefault: false, isNamespace: !!alias });
+    const original = source.split("/").pop()?.replace(/\.dart$/, "") ?? source;
+    const name = alias ?? original;
+    pushImport(imports, { name, source, isDefault: false, isNamespace: !!alias }, original);
   }
 
   // export 'src/foo.dart';
